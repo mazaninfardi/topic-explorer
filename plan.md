@@ -143,6 +143,14 @@ Scalability and caching as usage grows (model-response caching, shared topic gra
 
 ---
 
+## Testing stance
+- **Sufficient, not exhaustive.** Favor speed: smoke/critical-path tests and guards against obvious breakage; skip broad coverage for now. Revisit as the app matures (post-MVP).
+
+## Branching & release convention
+- Work happens on a branch per change (one branch per OpenSpec change).
+- **Merge to `main` at every working end-to-end demo** — each milestone (Pre-MVP included) is an e2e demo point, so `main` accumulates clean, taggable snapshots of each milestone.
+- Tag `main` at each merged milestone for a clear history of Pre-MVP → MVP → M1 → …
+
 ## Cross-cutting decisions & notes
 - **Model abstraction:** even though MVP is Gemini-only, calls go through a provider interface so Claude/OpenAI can slot in later.
 - **Caching (from M1):** cache the extracted What/Why/How (and term definitions) in IndexedDB so reopening a topic is instant and doesn't re-bill the model.

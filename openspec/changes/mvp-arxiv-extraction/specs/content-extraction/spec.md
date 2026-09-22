@@ -35,7 +35,7 @@ The system SHALL select a small set of salient terms for each node's content, an
 #### Scenario: Salient terms are produced for the What node
 
 - **WHEN** the What node content is produced
-- **THEN** the system marks a small number (at least one) of its words as salient terms
+- **THEN** the system marks salient terms
 
 #### Scenario: Salient terms are substrings of the node text
 
@@ -44,12 +44,12 @@ The system SHALL select a small set of salient terms for each node's content, an
 
 ### Requirement: Produce a definition for an expanded term
 
-When a salient term is expanded, the system SHALL produce a model-generated definition — a general, plain-language explanation plus one line reflecting how the term is used in the provided surrounding snippet — and that definition SHALL itself contain salient terms so exploration can continue. The full source paper SHALL NOT be required to define a term.
+When a salient term is expanded, the system SHALL produce a model-generated definition — a general, plain-language explanation and that definition SHALL itself contain salient terms so exploration can continue. The full source paper SHALL NOT be required to define a term.
 
 #### Scenario: Expanding a term yields definition content with further terms
 
-- **WHEN** a salient term is expanded together with its surrounding node-text snippet
-- **THEN** the system returns a general definition plus one line grounded in that snippet
+- **WHEN** a salient term is expanded
+- **THEN** the system returns a general definition for the term in a new node
 - **AND** the definition contains its own salient terms
 
 ## REMOVED Requirements

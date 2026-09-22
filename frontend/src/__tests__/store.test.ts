@@ -1,57 +1,82 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { ROOT_ID, useGraphStore } from '../graph/store'
-import type { TGNodeData } from '../graph/types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExploreHandlers } from '../content/ContentSource'
 
-const rootData: TGNodeData = { kind: 'what', text: 'root', terms: ['foo'] }
-const childData: TGNodeData = { kind: 'salient-term', text: 'foo def', terms: [] }
+const h = vi.hoisted(() => ({
+  handlers: null as ExploreHandlers | null,
+  defineTerm: vi.fn(async () => ({ text: 'A definition.', terms: [] as string[] })),
+}))
+
+vi.mock('../content', () => ({
+  contentSource: {
+    explore: (_ref: string, handlers: ExploreHandlers) => {
+      h.handlers = handlers
+      return () => {}
+    },
+    defineTerm: h.defineTerm,
+  },
+}))
+
+import { ROOT_ID, useGraphStore } from '../graph/store'
+
+const start = (what = { text: 'What text with foo', terms: ['foo'] }) => {
+  useGraphStore.getState().explore('1512.03385')
+  h.handlers!.onWhat(what)
+}
 
 beforeEach(() => {
-  useGraphStore.getState().setRoot(rootData)
+  useGraphStore.getState().reset()
+  h.handlers = null
+  h.defineTerm.mockClear()
 })
 
 describe('graph store', () => {
-  it('seeds a single root What node', () => {
-    const { nodes, edges } = useGraphStore.getState()
+  it('seeds a single root What node when What streams in', () => {
+    useGraphStore.getState().explore('x')
+    expect(useGraphStore.getState().status).toBe('extracting')
+    h.handlers!.onWhat({ text: 'W', terms: [] })
+    const { nodes, status } = useGraphStore.getState()
     expect(nodes).toHaveLength(1)
     expect(nodes[0].id).toBe(ROOT_ID)
-    expect(edges).toHaveLength(0)
+    expect(status).toBe('ready')
   })
 
-  it('addChildNode adds a node and a connecting edge', () => {
-    useGraphStore.getState().addChildNode(ROOT_ID, 'foo', childData)
+  it('opens a single Why node from streamed content and dedupes', () => {
+    start()
+    h.handlers!.onWhy({ text: 'why text', terms: [] })
+    useGraphStore.getState().openSpecial('why')
+    useGraphStore.getState().openSpecial('why')
     const { nodes, edges } = useGraphStore.getState()
-    expect(nodes).toHaveLength(2)
+    expect(nodes.filter((n) => n.data.kind === 'why')).toHaveLength(1)
     expect(edges).toHaveLength(1)
-    expect(edges[0].source).toBe(ROOT_ID)
-    expect(edges[0].target).toBe(nodes[1].id)
   })
 
-  it('is a no-op when the same term is expanded twice from the same node', () => {
-    const store = useGraphStore.getState()
-    store.addChildNode(ROOT_ID, 'foo', childData)
-    store.addChildNode(ROOT_ID, 'foo', childData)
+  it('does not open Why before its content has arrived', () => {
+    start()
+    useGraphStore.getState().openSpecial('why')
+    expect(useGraphStore.getState().nodes.filter((n) => n.data.kind === 'why')).toHaveLength(0)
+  })
+
+  it('expands a term into a loading node, then fills it', async () => {
+    start()
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    const child = useGraphStore.getState().nodes[1]
+    expect(useGraphStore.getState().nodes).toHaveLength(2)
+    expect(child.data.loading).toBe(true)
+    await vi.waitFor(() => expect(useGraphStore.getState().nodes[1].data.loading).toBe(false))
+    expect(useGraphStore.getState().nodes[1].data.text).toBe('A definition.')
+  })
+
+  it('dedupes a repeat term expansion from the same node', () => {
+    start()
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
     expect(useGraphStore.getState().nodes).toHaveLength(2)
   })
 
-  it('ignores expansion from an unknown parent', () => {
-    useGraphStore.getState().addChildNode('does-not-exist', 'foo', childData)
-    expect(useGraphStore.getState().nodes).toHaveLength(1)
-  })
-
-  it('supports nesting to arbitrary depth (root -> child -> grandchild)', () => {
-    const store = useGraphStore.getState()
-    store.addChildNode(ROOT_ID, 'foo', { kind: 'salient-term', text: 'foo', terms: ['bar'] })
-    const child = useGraphStore.getState().nodes[1]
-    store.addChildNode(child.id, 'bar', { kind: 'salient-term', text: 'bar', terms: ['baz'] })
-    const grandchild = useGraphStore.getState().nodes[2]
-    store.addChildNode(grandchild.id, 'baz', { kind: 'salient-term', text: 'baz', terms: [] })
-
-    const { nodes, edges } = useGraphStore.getState()
-    expect(nodes).toHaveLength(4)
-    expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
-      `${ROOT_ID}->${child.id}`,
-      `${child.id}->${grandchild.id}`,
-      `${grandchild.id}->${nodes[3].id}`,
-    ])
+  it('sets an error status when extraction fails', () => {
+    useGraphStore.getState().explore('x')
+    h.handlers!.onError('boom')
+    expect(useGraphStore.getState().status).toBe('error')
+    expect(useGraphStore.getState().error).toBe('boom')
   })
 })

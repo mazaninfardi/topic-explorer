@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Background, Controls, ReactFlow, type NodeTypes } from '@xyflow/react'
 import { useGraphStore } from '../graph/store'
 import { WhatNode } from './WhatNode'
+import { SpecialNode } from './SpecialNode'
 import { SalientTermNode } from './SalientTermNode'
 
 export function GraphCanvas() {
@@ -10,7 +11,12 @@ export function GraphCanvas() {
   const onNodesChange = useGraphStore((s) => s.onNodesChange)
 
   const nodeTypes = useMemo<NodeTypes>(
-    () => ({ what: WhatNode, 'salient-term': SalientTermNode }),
+    () => ({
+      what: WhatNode,
+      why: SpecialNode,
+      how: SpecialNode,
+      'salient-term': SalientTermNode,
+    }),
     [],
   )
 

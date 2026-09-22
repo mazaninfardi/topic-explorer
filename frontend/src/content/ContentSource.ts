@@ -1,19 +1,24 @@
-import type { TGNodeData } from '../graph/types'
+/** Plain content payload for a node: body text + verbatim salient terms. */
+export interface NodeContent {
+  text: string
+  terms: string[]
+}
 
-/** Raised by `deriveWhat` when the input can't yield a first and last sentence. */
-export const TOO_SHORT_MESSAGE =
-  'Please paste at least two sentences so we can find a beginning and an end.'
+/** Streaming callbacks for an exploration (What arrives first, then Why/How). */
+export interface ExploreHandlers {
+  onWhat: (content: NodeContent) => void
+  onWhy: (content: NodeContent) => void
+  onHow: (content: NodeContent) => void
+  onError: (message: string) => void
+}
 
 /**
  * The single seam between the UI and wherever node content comes from.
- * Pre-MVP ships `MockContentSource`; MVP will add a `BackendContentSource`
- * that hits the FastAPI/Gemini backend — the UI must only ever call these.
+ * MVP ships `BackendContentSource` (arXiv → Gemini via the FastAPI BFF).
  */
 export interface ContentSource {
-  /** Build the root What node from a pasted paragraph. Throws on too-short input. */
-  deriveWhat(paragraph: string): TGNodeData
-  /** Select salient terms within a piece of text. */
-  salientTerms(text: string): string[]
-  /** Produce a definition node for an expanded term (itself carrying terms). */
-  defineTerm(term: string): TGNodeData
+  /** Start extracting a paper; returns an unsubscribe to cancel the stream. */
+  explore(ref: string, handlers: ExploreHandlers): () => void
+  /** Define a salient term (general, plain-language). */
+  defineTerm(term: string): Promise<NodeContent>
 }

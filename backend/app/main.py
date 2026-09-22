@@ -6,12 +6,14 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .arxiv import IngestionError, fetch_pdf
+from .arxiv import IngestionError, arxiv_id, fetch_pdf
 from .gemini import GeminiExtractor
 
 app = FastAPI(title="Topic Explorer BFF")
 
 _extractor: GeminiExtractor | None = None
+# In-memory extraction cache keyed by canonical arXiv id (per process).
+_extract_cache: dict[str, dict] = {}
 
 
 def _get_extractor() -> GeminiExtractor:
@@ -35,6 +37,19 @@ async def health() -> dict:
 async def extract(arxiv: str) -> StreamingResponse:
     async def gen():
         try:
+            paper_id = arxiv_id(arxiv)
+        except IngestionError as exc:
+            yield _sse("error", {"message": str(exc)})
+            return
+
+        cached = _extract_cache.get(paper_id)
+        if cached is not None:
+            yield _sse("what", cached["what"])
+            yield _sse("why", cached["why"])
+            yield _sse("how", cached["how"])
+            return
+
+        try:
             pdf = await fetch_pdf(arxiv)
         except IngestionError as exc:
             yield _sse("error", {"message": str(exc)})
@@ -43,6 +58,10 @@ async def extract(arxiv: str) -> StreamingResponse:
             what = await _get_extractor().extract_what(pdf)
             yield _sse("what", what)
             why_how = await _get_extractor().extract_why_how(pdf)
+            # Cache BEFORE the final yields: the client closes the stream on
+            # receiving `how`, which cancels this generator — so a cache write
+            # placed after those yields would never run.
+            _extract_cache[paper_id] = {"what": what, "why": why_how["why"], "how": why_how["how"]}
             yield _sse("why", why_how["why"])
             yield _sse("how", why_how["how"])
         except Exception:  # noqa: BLE001 - surface a clean error to the client

@@ -13,8 +13,8 @@ class IngestionError(Exception):
     """User-facing ingestion problem (bad input or fetch failure)."""
 
 
-def to_pdf_url(ref: str) -> str:
-    """Normalize an arXiv URL or bare ID to its canonical PDF URL.
+def arxiv_id(ref: str) -> str:
+    """Extract the canonical arXiv id (with version, if any) from a reference.
 
     Raises IngestionError for anything that isn't a recognizable arXiv reference.
     """
@@ -29,8 +29,12 @@ def to_pdf_url(ref: str) -> str:
     if match is None or not is_arxiv:
         raise IngestionError("Only arXiv links are supported at this stage.")
 
-    arxiv_id = match.group(1) + (match.group(2) or "")
-    return f"https://arxiv.org/pdf/{arxiv_id}"
+    return match.group(1) + (match.group(2) or "")
+
+
+def to_pdf_url(ref: str) -> str:
+    """Normalize an arXiv URL or bare ID to its canonical PDF URL."""
+    return f"https://arxiv.org/pdf/{arxiv_id(ref)}"
 
 
 async def fetch_pdf(ref: str) -> bytes:

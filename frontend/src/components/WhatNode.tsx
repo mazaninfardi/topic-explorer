@@ -29,13 +29,19 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
   return (
     <div className="max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md">
       <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-sky-600">What</div>
-      <div className="text-sm leading-relaxed text-slate-800">
-        <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
-      </div>
-      <div className="mt-3 flex gap-2">
-        {action('why', 'Why')}
-        {action('how', 'How')}
-      </div>
+      {data.loading ? (
+        <div className="animate-pulse text-sm text-slate-400">Reading the paper…</div>
+      ) : (
+        <>
+          <div className="text-sm leading-relaxed text-slate-800">
+            <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
+          </div>
+          <div className="mt-3 flex gap-2">
+            {action('why', 'Why')}
+            {action('how', 'How')}
+          </div>
+        </>
+      )}
       <Handle type="source" position={Position.Right} />
     </div>
   )

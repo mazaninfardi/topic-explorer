@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { applyNodeChanges, type NodeChange } from '@xyflow/react'
 import type { TGEdge, TGNode } from './types'
-import { ROOT_POSITION, childPosition } from './layout'
+import { layoutGraph } from './layout'
 import { contentSource } from '../content'
 
 export const ROOT_ID = 'root'
@@ -13,6 +13,8 @@ const nextId = () => `n${(idCounter += 1)}`
 const expansionKey = (parentId: string, term: string) =>
   `${parentId}::${term.toLowerCase()}`
 
+const ORIGIN = { x: 0, y: 0 }
+
 interface GraphState {
   nodes: TGNode[]
   edges: TGEdge[]
@@ -23,18 +25,12 @@ interface GraphState {
   error: string | null
   unsubscribe: (() => void) | null
 
-  /** Start extracting an arXiv paper; streams What, then Why/How. */
   explore: (ref: string) => void
-  /** Open the Why or How special node (once) from the streamed content. */
   openSpecial: (kind: SpecialKind) => void
-  /** Expand a salient term into a loading node, then fill it from the model. */
   expandTerm: (parentId: string, term: string) => void
   onNodesChange: (changes: NodeChange<TGNode>[]) => void
   reset: () => void
 }
-
-const childIndexOf = (edges: TGEdge[], parentId: string) =>
-  edges.filter((e) => e.source === parentId).length
 
 export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
@@ -50,17 +46,24 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     get().reset()
     const unsubscribe = contentSource.explore(ref, {
       onWhat: (c) =>
-        set({
-          nodes: [
-            { id: ROOT_ID, type: 'what', position: ROOT_POSITION, data: { kind: 'what', text: c.text, terms: c.terms } },
-          ],
+        set((s) => ({
+          nodes: layoutGraph(
+            s.nodes.map((n) =>
+              n.id === ROOT_ID ? { ...n, data: { ...n.data, text: c.text, terms: c.terms, loading: false } } : n,
+            ),
+            s.edges,
+          ),
           status: 'ready',
-        }),
+        })),
       onWhy: (c) => set((s) => ({ pending: { ...s.pending, why: c } })),
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
-      onError: (message) => set({ status: 'error', error: message }),
+      onError: (message) => set({ status: 'error', error: message, nodes: [], edges: [] }),
     })
-    set({ status: 'extracting', unsubscribe })
+    set({
+      nodes: [{ id: ROOT_ID, type: 'what', position: ORIGIN, data: { kind: 'what', text: '', terms: [], loading: true } }],
+      status: 'extracting',
+      unsubscribe,
+    })
   },
 
   openSpecial: (kind) => {
@@ -71,41 +74,31 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     if (!content || !root) return
 
     const id = nextId()
-    const node: TGNode = {
-      id,
-      type: kind,
-      position: childPosition(root.position, childIndexOf(s.edges, ROOT_ID)),
-      data: { kind, text: content.text, terms: content.terms },
-    }
-    const edge: TGEdge = { id: `e-${ROOT_ID}-${id}`, source: ROOT_ID, target: id }
+    const node: TGNode = { id, type: kind, position: ORIGIN, data: { kind, text: content.text, terms: content.terms } }
+    const edges = [...s.edges, { id: `e-${ROOT_ID}-${id}`, source: ROOT_ID, target: id }]
     const opened = new Set(s.specialsOpened)
     opened.add(kind)
-    set({ nodes: [...s.nodes, node], edges: [...s.edges, edge], specialsOpened: opened })
+    set({ nodes: layoutGraph([...s.nodes, node], edges), edges, specialsOpened: opened })
   },
 
   expandTerm: (parentId, term) => {
     const s = get()
     const key = expansionKey(parentId, term)
     if (s.expansions.has(key)) return
-    const parent = s.nodes.find((n) => n.id === parentId)
-    if (!parent) return
+    if (!s.nodes.some((n) => n.id === parentId)) return
 
     const id = nextId()
-    const node: TGNode = {
-      id,
-      type: 'salient-term',
-      position: childPosition(parent.position, childIndexOf(s.edges, parentId)),
-      data: { kind: 'salient-term', text: '', terms: [], loading: true },
-    }
-    const edge: TGEdge = { id: `e-${parentId}-${id}`, source: parentId, target: id }
+    const node: TGNode = { id, type: 'salient-term', position: ORIGIN, data: { kind: 'salient-term', text: '', terms: [], loading: true } }
+    const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
     const expansions = new Set(s.expansions)
     expansions.add(key)
-    set({ nodes: [...s.nodes, node], edges: [...s.edges, edge], expansions })
+    set({ nodes: layoutGraph([...s.nodes, node], edges), edges, expansions })
 
     const fill = (text: string, terms: string[]) =>
       set((st) => ({
-        nodes: st.nodes.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, text, terms, loading: false } } : n,
+        nodes: layoutGraph(
+          st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, text, terms, loading: false } } : n)),
+          st.edges,
         ),
       }))
 

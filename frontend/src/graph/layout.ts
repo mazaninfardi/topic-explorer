@@ -1,19 +1,35 @@
-import type { XYPosition } from '@xyflow/react'
+import Dagre from '@dagrejs/dagre'
+import type { TGEdge, TGNode } from './types'
 
-/** Where the root What node is placed. */
-export const ROOT_POSITION: XYPosition = { x: 0, y: 0 }
-
-const HORIZONTAL_GAP = 320
-const VERTICAL_GAP = 180
+/** Fallback node size before React Flow has measured the real DOM node. */
+const DEFAULT_W = 320
+const DEFAULT_H = 200
 
 /**
- * Simple deterministic placement: children fan out to the right of their
- * parent and stack vertically by birth order. No auto-layout library — this
- * is a Pre-MVP skeleton (auto-layout is a later concern).
+ * Lay the graph out as a tidy left-to-right tree with dagre. Uses each node's
+ * measured size when available (React Flow populates `node.measured` after
+ * render), falling back to estimates. Returns new node objects with positions;
+ * edges are unchanged.
  */
-export function childPosition(parent: XYPosition, childIndex: number): XYPosition {
-  return {
-    x: parent.x + HORIZONTAL_GAP,
-    y: parent.y + childIndex * VERTICAL_GAP,
+export function layoutGraph(nodes: TGNode[], edges: TGEdge[]): TGNode[] {
+  if (nodes.length === 0) return nodes
+
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'LR', nodesep: 48, ranksep: 120, marginx: 24, marginy: 24 })
+
+  for (const n of nodes) {
+    g.setNode(n.id, {
+      width: n.measured?.width ?? DEFAULT_W,
+      height: n.measured?.height ?? DEFAULT_H,
+    })
   }
+  for (const e of edges) g.setEdge(e.source, e.target)
+
+  Dagre.layout(g)
+
+  return nodes.map((n) => {
+    const { x, y, width, height } = g.node(n.id)
+    // dagre gives center coordinates; React Flow positions by top-left.
+    return { ...n, position: { x: x - width / 2, y: y - height / 2 } }
+  })
 }

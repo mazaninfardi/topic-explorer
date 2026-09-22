@@ -30,14 +30,19 @@ beforeEach(() => {
 })
 
 describe('graph store', () => {
-  it('seeds a single root What node when What streams in', () => {
+  it('shows a loading root while extracting, then fills it when What arrives', () => {
     useGraphStore.getState().explore('x')
-    expect(useGraphStore.getState().status).toBe('extracting')
+    let st = useGraphStore.getState()
+    expect(st.status).toBe('extracting')
+    expect(st.nodes).toHaveLength(1)
+    expect(st.nodes[0].id).toBe(ROOT_ID)
+    expect(st.nodes[0].data.loading).toBe(true)
+
     h.handlers!.onWhat({ text: 'W', terms: [] })
-    const { nodes, status } = useGraphStore.getState()
-    expect(nodes).toHaveLength(1)
-    expect(nodes[0].id).toBe(ROOT_ID)
-    expect(status).toBe('ready')
+    st = useGraphStore.getState()
+    expect(st.nodes).toHaveLength(1)
+    expect(st.nodes[0].data.loading).toBe(false)
+    expect(st.status).toBe('ready')
   })
 
   it('opens a single Why node from streamed content and dedupes', () => {

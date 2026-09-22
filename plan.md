@@ -52,8 +52,8 @@ Generated as a **plain-language general definition + one sentence on how *this p
 | Frontend | React + Vite + Tailwind + **React Flow** | React Flow gives rich custom nodes (What node with Why/How buttons, salient-term boxes) and native expand/collapse. |
 | FE state | **Zustand** (graph/UI) + **TanStack Query** (server) | Zustand pairs naturally with React Flow for graph/UI state; TanStack Query handles server calls, caching, and loading/error states. Lightweight. |
 | Backend | **FastAPI** as a BFF | Thin backend-for-frontend orchestrating model calls and (later) persistence. |
-| Model | **Gemini** (GCP), native PDF via **File API** | BE downloads the arXiv PDF, uploads it via the Gemini **File API**, and references it — no parsing layer; math/figures handled by the model; robust for larger PDFs and reuse across a paper's calls. Long context (~1M tokens) fits whole papers. Model access abstracted behind an interface to allow Claude/OpenAI later. |
-| Ingestion | arXiv link → PDF → Gemini File API | MVP is arXiv-only. Non-arXiv / uploaded PDFs come at M3. |
+| Model | **Gemini `gemini-2.5-flash` via Vertex AI** (GCP), native PDF as **inline bytes** | BE downloads the arXiv PDF and passes it as **inline bytes** (`Part.from_bytes`) — no parsing layer; math/figures handled by the model. (Vertex has no File API; large PDFs fall back to a GCS URI.) Long context fits whole papers. Auth via ADC (Vertex); model access abstracted behind an interface to allow Claude/OpenAI later. Validated by the extraction spike (`spikes/FINDINGS.md`). |
+| Ingestion | arXiv link → PDF → Gemini (inline bytes) | MVP is arXiv-only. Non-arXiv / uploaded PDFs come at M3. |
 | Response style | **Streaming (SSE)** | Full-PDF extraction is slow (10–60s); stream What → Why → How as each is ready so the What node appears fast. |
 | Storage | **IndexedDB** (MVP/M1) → **Postgres + SQLAlchemy** (M2) | Client-side, zero-DB persistence to start; server DB when we add real accounts and cross-device data. Note: the FastAPI **server** exists from MVP (to hold the Gemini key); only the **database** waits until M2. |
 | Auth | **Google OAuth** (M2) | Deferred to when it has real payoff — binding data to an account on the server DB. Before M2, the app is anonymous and data is device-local. GCP project + OAuth already scaffolded. |
@@ -76,7 +76,7 @@ topic-explorer/
 
 ### Data flow
 1. FE sends an arXiv link to the BFF.
-2. BFF resolves the PDF, uploads it via the Gemini **File API**, and runs extraction with **structured output** (JSON schema): **What first**, then **Why**/**How**.
+2. BFF resolves the PDF and passes it to Gemini (Vertex) as **inline bytes**, running extraction with **structured output** (JSON schema): **What first**, then **Why**/**How**. Salient terms are constrained to appear verbatim in their node's text so the UI can highlight them.
 3. BFF **streams** results back over SSE; FE renders the **What** node within seconds, then fills in **Why**/**How** as they arrive.
 4. Clicking **Why**/**How** reveals the streamed-in content.
 5. Clicking a **salient term** hits a separate REST endpoint returning a **general definition + one paper-usage line**; FE appends a salient-term node.

@@ -1,23 +1,21 @@
 import type { Node, Edge } from '@xyflow/react'
 
 /**
- * The kinds of node the graph can hold.
- * - `what`: the root headline node (one per exploration).
+ * Node kinds:
+ * - `what`: the root headline node (one per paper); exposes Why/How actions.
+ * - `why` / `how`: special explanation nodes opened from the What node.
  * - `salient-term`: a plain-language definition node; may nest further terms.
- *   Salient-term nodes never expose Why/How.
  */
-export type NodeKind = 'what' | 'salient-term'
+export type NodeKind = 'what' | 'why' | 'how' | 'salient-term'
 
-/**
- * Content carried by every graph node. The index signature keeps this
- * assignable to React Flow's `Node<Record<string, unknown>>` constraint.
- */
 export interface TGNodeData {
   kind: NodeKind
-  /** The node's body text. */
+  /** The node's body text (empty while loading). */
   text: string
   /** Salient terms within `text` that can be expanded into child nodes. */
   terms: string[]
+  /** True while the node's content is still being fetched. */
+  loading?: boolean
   [key: string]: unknown
 }
 

@@ -1,0 +1,8 @@
+[project]
+name = "topic-explorer-spikes"
+version = "0"
+description = "Throwaway spikes (not part of the app). Gemini extraction quality check."
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai>=1.0.0",
+]

@@ -1,4 +1,4 @@
-import { ParagraphInput } from './components/ParagraphInput'
+import { PaperInput } from './components/PaperInput'
 import { GraphCanvas } from './components/GraphCanvas'
 
 export default function App() {
@@ -7,10 +7,10 @@ export default function App() {
       <header className="bg-slate-900 px-4 py-3 text-white">
         <h1 className="text-lg font-semibold">Topic Explorer</h1>
         <p className="text-xs text-slate-300">
-          Pre-MVP skeleton — mocked content, click salient terms to explore
+          Paste an arXiv link → explore What, Why, and How; click salient terms to go deeper
         </p>
       </header>
-      <ParagraphInput />
+      <PaperInput />
       <main className="min-h-0 flex-1">
         <GraphCanvas />
       </main>

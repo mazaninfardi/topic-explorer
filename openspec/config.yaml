@@ -18,9 +18,11 @@ context: |
   - Frontend: React + Vite + Tailwind + React Flow. State: Zustand (graph/UI)
     + TanStack Query (server).
   - Backend: FastAPI as a stateless BFF. Protocol: REST + SSE (streaming).
-  - Model: Gemini (GCP) via the File API, structured JSON output. Provider
-    abstracted behind an interface (Claude/OpenAI later).
-  - Ingestion: arXiv link -> PDF -> Gemini File API (arXiv-only until M3).
+  - Model: Gemini gemini-2.5-flash via Vertex AI (GCP), auth via ADC. PDF
+    passed as inline bytes (Vertex has no File API; large PDFs -> GCS URI).
+    Structured JSON output. Provider abstracted behind an interface
+    (Claude/OpenAI later). Extraction quality validated (spikes/FINDINGS.md).
+  - Ingestion: arXiv link -> PDF -> Gemini inline bytes (arXiv-only until M3).
   - Storage: IndexedDB (MVP/M1) -> Postgres + SQLAlchemy (M2).
   - Auth: Google OAuth (M2 only; anonymous before that).
   - Deploy: Cloud Run single service (FastAPI serves built static FE + API),

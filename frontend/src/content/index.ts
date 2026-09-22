@@ -1,12 +1,10 @@
 import type { ContentSource } from './ContentSource'
-import { MockContentSource } from './MockContentSource'
+import { BackendContentSource } from './BackendContentSource'
 
 /**
- * The app-wide content source. Everything that needs node content imports
- * this — swapping the implementation here (e.g. for a BackendContentSource
- * at MVP) is the only change needed.
+ * The app-wide content source. Swap the implementation here to change where
+ * node content comes from (this is the seam established at Pre-MVP).
  */
-export const contentSource: ContentSource = new MockContentSource()
+export const contentSource: ContentSource = new BackendContentSource()
 
-export type { ContentSource }
-export { TOO_SHORT_MESSAGE } from './ContentSource'
+export type { ContentSource, NodeContent, ExploreHandlers } from './ContentSource'

@@ -1,0 +1,74 @@
+schema: spec-driven
+
+context: |
+  Topic Explorer — a web app that makes complex scientific research accessible
+  to the curious, regardless of background. A user brings a topic (an arXiv
+  paper to start) and the app renders understanding as an explorable graph:
+  a concise "What" first, then "Why" and "How" on demand, with any salient
+  term expandable into its own simple explanation, recursively.
+
+  Node model:
+  - What node (root, one per paper): the headline (paper's M1+M5). Exposes
+    Why and How actions.
+  - Why node (M2+M3) and How node (M4): special nodes; contain salient terms.
+  - Salient-term node: a plain-language What-only definition; may nest further
+    salient terms. Never has Why/How.
+
+  Tech stack:
+  - Frontend: React + Vite + Tailwind + React Flow. State: Zustand (graph/UI)
+    + TanStack Query (server).
+  - Backend: FastAPI as a stateless BFF. Protocol: REST + SSE (streaming).
+  - Model: Gemini (GCP) via the File API, structured JSON output. Provider
+    abstracted behind an interface (Claude/OpenAI later).
+  - Ingestion: arXiv link -> PDF -> Gemini File API (arXiv-only until M3).
+  - Storage: IndexedDB (MVP/M1) -> Postgres + SQLAlchemy (M2).
+  - Auth: Google OAuth (M2 only; anonymous before that).
+  - Deploy: Cloud Run single service (FastAPI serves built static FE + API),
+    from MVP. Secrets via GCP Secret Manager.
+  - Tooling: uv (Python) + pnpm (JS). Monorepo: frontend/ + backend/.
+
+  Extraction: hybrid, What-first. Extract What fast so the root node appears
+  within seconds, then stream Why/How. Salient-term definitions are lazy:
+  a general plain-language definition plus one line on how this paper uses
+  the term.
+
+  Milestones: Pre-MVP (fake-data skeleton + a parallel throwaway Gemini
+  extraction spike to de-risk quality) -> MVP (real arXiv extraction, deployed
+  to Cloud Run, no accounts) -> M1 (expand/collapse + IndexedDB persistence,
+  still anonymous) -> M2 (Postgres + Google OAuth) -> M3 (recall scoring,
+  omnisearch, PDF/non-arXiv). Realistic target is ~M1.
+
+  Conventions: conventional-commit-style messages; keep the BFF stateless;
+  never ship the Gemini key to the client.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

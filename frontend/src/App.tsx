@@ -16,7 +16,7 @@ export default function App() {
         <div>
           <h1 className="text-lg font-semibold">Topic Explorer</h1>
           <p className="text-xs text-slate-300">
-            Paste an arXiv link → explore What, Why, and How; click salient terms to go deeper
+            Explore a topic or paper → What, Why, and How; click any highlighted word to go deeper
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -25,7 +25,7 @@ export default function App() {
             {signedIn && (
               <>
                 <NavLink to="/topics" className={navClass}>Topics</NavLink>
-                <NavLink to="/terms/familiar" className={navClass}>Familiar</NavLink>
+                <NavLink to="/terms/familiar" className={navClass}>Known</NavLink>
               </>
             )}
           </nav>

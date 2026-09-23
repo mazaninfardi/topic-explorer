@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title
+from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title, is_arxiv_ref, search_arxiv
 from .auth import COOKIE, build_auth_url, current_user, exchange_code, set_session_cookie
 from .config import settings
 from .db import SessionLocal, get_session, init_db
@@ -50,7 +50,12 @@ async def health() -> dict:
 # ---------------------------------------------------------------- auth
 
 def _user_public(user: User) -> dict:
-    return {"authenticated": not user.is_guest, "guest": user.is_guest, "email": user.email, "name": user.name}
+    info = {"authenticated": not user.is_guest, "guest": user.is_guest, "email": user.email, "name": user.name}
+    if user.is_guest:
+        used = len(user.explored or [])
+        info["papers_left"] = max(0, settings.guest_paper_limit - used)
+        info["guest_limit"] = settings.guest_paper_limit
+    return info
 
 
 def _require_account(user: User) -> None:
@@ -192,11 +197,17 @@ async def remove_familiar(term: str, user: User = Depends(current_user), session
 @app.get("/api/extract")
 async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingResponse:
     async def gen():
-        try:
+        # Accept either an arXiv reference or a free-text topic. A topic is
+        # resolved to the most relevant paper via arXiv search.
+        if is_arxiv_ref(arxiv):
             paper_id = arxiv_id(arxiv)
-        except IngestionError as exc:
-            yield _sse("error", {"message": str(exc)})
-            return
+        else:
+            paper_id = await search_arxiv(arxiv)
+            if not paper_id:
+                yield _sse("error", {
+                    "message": "No paper found for that topic — try different words, or paste an arXiv link.",
+                })
+                return
         url = f"https://arxiv.org/abs/{paper_id}"
 
         async with SessionLocal() as s:
@@ -217,11 +228,11 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
                 return
 
         try:
-            pdf = await fetch_pdf(arxiv)
+            pdf = await fetch_pdf(paper_id)
         except IngestionError as exc:
             yield _sse("error", {"message": str(exc)})
             return
-        title_task = asyncio.create_task(fetch_title(arxiv))
+        title_task = asyncio.create_task(fetch_title(paper_id))
         try:
             what = await _get_extractor().extract_what(pdf)
             what = {**what, "title": await title_task, "url": url}

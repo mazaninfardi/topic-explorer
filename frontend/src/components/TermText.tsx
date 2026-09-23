@@ -18,6 +18,9 @@ interface TermTextProps {
 export function TermText({ text, terms, onTermClick }: TermTextProps) {
   const familiar = useGraphStore((s) => s.familiar)
 
+  // Strip stray markdown emphasis the model sometimes emits (**term**, __term__).
+  text = text.replace(/\*\*|__/g, '')
+
   if (terms.length === 0) return <span>{text}</span>
 
   const familiarLc = new Set([...familiar].map((t) => t.toLowerCase()))
@@ -35,10 +38,10 @@ export function TermText({ text, terms, onTermClick }: TermTextProps) {
           <button
             key={i}
             type="button"
-            className={`nodrag nopan relative mx-0.5 rounded px-1 font-medium underline decoration-dotted underline-offset-2 ${
+            className={`tg-term nodrag nopan mx-0.5 rounded px-1 font-medium underline decoration-dotted underline-offset-2 ${
               isFamiliar
-                ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
+                ? 'bg-emerald-50 text-emerald-800 decoration-emerald-400 hover:bg-emerald-100'
+                : 'bg-slate-100 text-slate-800 decoration-sky-500 hover:bg-slate-200'
             }`}
             onClick={(e) => {
               e.stopPropagation()
@@ -46,11 +49,7 @@ export function TermText({ text, terms, onTermClick }: TermTextProps) {
             }}
           >
             {part}
-            {isFamiliar && (
-              <span className="absolute -right-1 -top-1 rounded-full bg-emerald-500 px-[3px] text-[8px] leading-tight text-white">
-                ✓
-              </span>
-            )}
+            {isFamiliar && <span className="ml-0.5 text-emerald-600">✓</span>}
           </button>
         )
       })}

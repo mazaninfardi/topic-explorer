@@ -115,6 +115,36 @@ describe('graph store', () => {
     useGraphStore.getState().explore('https://arxiv.org/abs/1512.03385')
     expect(useGraphStore.getState().currentTopic?.id).toBe('1512.03385')
   })
+
+  it('gives each exploration a fresh topicKey (fit-to-view cue)', () => {
+    useGraphStore.getState().explore('1512.03385')
+    const first = useGraphStore.getState().topicKey
+    useGraphStore.getState().explore('1706.03762')
+    expect(useGraphStore.getState().topicKey).not.toBe(first)
+  })
+
+  it('records the newly added node as lastAddedId (pan-to-node cue)', () => {
+    start()
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    const child = useGraphStore.getState().nodes.find((n) => n.id !== ROOT_ID)!
+    expect(useGraphStore.getState().lastAddedId).toBe(child.id)
+  })
+
+  it('loadExample marks the graph as an example', () => {
+    useGraphStore.getState().loadExample({
+      arxiv_id: 'example',
+      title: 'Demo',
+      graph: {
+        nodes: [{ id: ROOT_ID, type: 'what', position: { x: 0, y: 0 }, data: { kind: 'what', text: 'x', terms: [] } }],
+        edges: [],
+        specialsOpened: [],
+        pending: {},
+        hidden: [],
+      },
+    })
+    expect(useGraphStore.getState().isExample).toBe(true)
+    expect(useGraphStore.getState().status).toBe('ready')
+  })
 })
 
 describe('sanitizeEdges (race/corruption repair)', () => {

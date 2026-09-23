@@ -34,19 +34,13 @@ function isOffscreen(node: Node, viewport: { x: number; y: number; zoom: number 
 
 /**
  * Camera policy that respects the reader:
- *  - fit-to-view once when a whole new graph appears (topicKey changes),
- *  - on expansion, pan a newly added node into view *only if* it's offscreen,
- *    keeping the user's zoom — never refit the whole graph,
- *  - once the user pans/zooms by hand, stop moving the camera automatically
- *    (React Flow's Controls still offer an explicit "fit view").
+ *  - fit-to-view only when a whole new graph appears (topicKey changes),
+ *  - on expansion, gently pan a newly added node into view *only if* it's
+ *    offscreen, always keeping the user's current zoom — never refit the graph.
+ * The user's manual pan/zoom is therefore never overridden except when they
+ * start a brand-new exploration; React Flow's Controls offer an explicit fit.
  */
-function CameraController({
-  userMoved,
-  programmatic,
-}: {
-  userMoved: React.MutableRefObject<boolean>
-  programmatic: React.MutableRefObject<boolean>
-}) {
+function CameraController() {
   const initialized = useNodesInitialized()
   const count = useGraphStore((s) => s.nodes.length)
   const topicKey = useGraphStore((s) => s.topicKey)
@@ -62,32 +56,22 @@ function CameraController({
 
   useEffect(() => {
     if (!initialized || count === 0) return
-    const runProgrammatic = (fn: () => void) => {
-      programmatic.current = true
-      fn()
-      window.setTimeout(() => {
-        programmatic.current = false
-      }, 450)
-    }
     const raf = requestAnimationFrame(() => {
       if (prevTopic.current !== topicKey) {
         prevTopic.current = topicKey
-        userMoved.current = false
-        runProgrammatic(() => void rf.fitView({ maxZoom: 1, minZoom: 0.2, padding: 0.2, duration: 300 }))
+        void rf.fitView({ maxZoom: 1, minZoom: 0.2, padding: 0.2, duration: 300 })
         return
       }
-      if (!lastAddedId || userMoved.current) return
+      if (!lastAddedId) return
       const node = rf.getNode(lastAddedId)
       const pane = document.querySelector('.react-flow')?.getBoundingClientRect()
       if (!node || !pane || !isOffscreen(node, rf.getViewport(), pane)) return
-      runProgrammatic(() => {
-        const w = node.measured?.width ?? node.width ?? 0
-        const h = node.measured?.height ?? node.height ?? 0
-        void rf.setCenter(node.position.x + w / 2, node.position.y + h / 2, { zoom: rf.getZoom(), duration: 300 })
-      })
+      const w = node.measured?.width ?? node.width ?? 0
+      const h = node.measured?.height ?? node.height ?? 0
+      void rf.setCenter(node.position.x + w / 2, node.position.y + h / 2, { zoom: rf.getZoom(), duration: 300 })
     })
     return () => cancelAnimationFrame(raf)
-  }, [initialized, count, topicKey, lastAddedId, rf, userMoved, programmatic])
+  }, [initialized, count, topicKey, lastAddedId, rf])
 
   return null
 }
@@ -97,8 +81,6 @@ export function GraphCanvas() {
   const edges = useGraphStore((s) => s.edges)
   const onNodesChange = useGraphStore((s) => s.onNodesChange)
   const currentTitle = useGraphStore((s) => (s.nodes.length > 0 ? s.currentTopic?.title : null))
-  const userMoved = useRef(false)
-  const programmatic = useRef(false)
 
   const nodeTypes = useMemo<NodeTypes>(
     () => ({ what: WhatNode, why: SpecialNode, how: SpecialNode, 'salient-term': SalientTermNode }),
@@ -126,14 +108,11 @@ export function GraphCanvas() {
         nodes={nodes}
         edges={styledEdges}
         onNodesChange={onNodesChange}
-        onMoveStart={() => {
-          if (!programmatic.current) userMoved.current = true
-        }}
         nodeTypes={nodeTypes}
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}
       >
-        <CameraController userMoved={userMoved} programmatic={programmatic} />
+        <CameraController />
         <Background />
         <Controls showInteractive={false} />
         <MiniMap

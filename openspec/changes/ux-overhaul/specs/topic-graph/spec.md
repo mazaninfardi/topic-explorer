@@ -22,21 +22,20 @@ user in plain language (e.g. "highlighted words"), never as internal jargon such
 ### Requirement: Preserve the reader's viewport during exploration
 
 The system SHALL fit the view to the whole graph only when a topic is first rendered. On expanding a term,
-the system SHALL bring the newly created node into view without refitting the whole graph, and SHALL keep
-the user's current zoom. Once the user manually pans or zooms, the system SHALL stop moving the camera
-automatically until the user invokes an explicit "fit view" control.
+the system SHALL, only if the new node is offscreen, gently pan it into view while keeping the user's
+current zoom, and SHALL never refit the whole graph. An explicit "fit view" control SHALL remain available.
 
 #### Scenario: Expanding a term keeps the reader oriented
 
 - **WHEN** the user clicks a highlighted word to expand it
-- **THEN** the new node is revealed in the viewport
-- **AND** the rest of the graph is not refit and the zoom level is unchanged
+- **THEN** the rest of the graph is not refit and the zoom level is unchanged
+- **AND** if the new node is offscreen it is gently panned into view, otherwise the camera does not move
 
-#### Scenario: Manual camera control is respected
+#### Scenario: Manual framing is not overridden
 
 - **WHEN** the user has panned or zoomed the graph manually
-- **AND** then expands a term
-- **THEN** the system does not move the camera automatically
+- **AND** then expands a term whose new node is already visible
+- **THEN** the camera does not move
 - **AND** an explicit "fit view" control remains available to re-frame the graph
 
 ### Requirement: Orient the user within the graph

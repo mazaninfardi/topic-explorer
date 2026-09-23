@@ -37,5 +37,5 @@
 
 ## 8. Verify
 - [x] 8.1 Typecheck + lint + unit tests green; add/adjust light tests for new store logic (topicKey, topic-vs-link resolve)
-- [ ] 8.2 In-browser e2e: first-visit example + FTUX; topic search; expand without losing viewport; loading; guest affordance
+- [x] 8.2 In-browser e2e: first-visit example + FTUX; topic search; expand without losing viewport; loading; guest affordance
 - [ ] 8.3 Merge to main; deploy to Cloud Run; verify live

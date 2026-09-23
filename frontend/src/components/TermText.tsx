@@ -18,6 +18,9 @@ interface TermTextProps {
 export function TermText({ text, terms, onTermClick }: TermTextProps) {
   const familiar = useGraphStore((s) => s.familiar)
 
+  // Strip stray markdown emphasis the model sometimes emits (**term**, __term__).
+  text = text.replace(/\*\*|__/g, '')
+
   if (terms.length === 0) return <span>{text}</span>
 
   const familiarLc = new Set([...familiar].map((t) => t.toLowerCase()))

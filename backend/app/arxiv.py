@@ -63,33 +63,36 @@ def is_arxiv_ref(ref: str) -> bool:
 _SEARCH_ID = re.compile(r"<entry>.*?<id>https?://arxiv\.org/abs/([^<]+?)</id>", re.DOTALL)
 
 
-async def search_arxiv(query: str) -> str | None:
-    """Resolve a free-text topic to the most relevant arXiv id, or None."""
-    q = query.strip()
-    if not q:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                "https://export.arxiv.org/api/query",
-                params={
-                    "search_query": f"all:{q}",
-                    "sortBy": "relevance",
-                    "start": 0,
-                    "max_results": 1,
-                },
-                headers={"User-Agent": "topic-explorer/0.1 (arxiv search)"},
-            )
-            resp.raise_for_status()
-    except httpx.HTTPError:
-        return None
+async def _arxiv_search_once(client: httpx.AsyncClient, search_query: str) -> str | None:
+    resp = await client.get(
+        "https://export.arxiv.org/api/query",
+        params={"search_query": search_query, "sortBy": "relevance", "start": 0, "max_results": 1},
+        headers={"User-Agent": "topic-explorer/0.1 (arxiv search)"},
+    )
+    resp.raise_for_status()
     m = _SEARCH_ID.search(resp.text)
     if not m:
         return None
     # The <id> is like 1706.03762v5 — normalize to the canonical id.
-    raw = m.group(1).strip()
-    hit = _ARXIV_ID.search(raw)
+    hit = _ARXIV_ID.search(m.group(1).strip())
     return (hit.group(1) + (hit.group(2) or "")) if hit else None
+
+
+async def search_arxiv(query: str) -> str | None:
+    """Resolve a free-text topic to the most relevant arXiv id, or None.
+
+    arXiv's relevance ranking is weak for bare term lists, so try the query as a
+    quoted phrase first (precise for titles/phrases) and fall back to an
+    unquoted all-fields search (covers natural-language questions).
+    """
+    q = query.strip().replace('"', "")
+    if not q:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            return await _arxiv_search_once(client, f'all:"{q}"') or await _arxiv_search_once(client, f"all:{q}")
+    except httpx.HTTPError:
+        return None
 
 
 _ENTRY_TITLE = re.compile(r"<entry>.*?<title>(.*?)</title>", re.DOTALL)

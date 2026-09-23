@@ -22,14 +22,15 @@ export function Onboarding() {
   const me = useAuthStore((s) => s.me)
   const isExample = useGraphStore((s) => s.isExample)
   const loadExample = useGraphStore((s) => s.loadExample)
+  const emptyCanvas = useGraphStore((s) => s.nodes.length === 0 && s.status === 'idle')
   const [dismissed, setDismissed] = useState(readDone)
 
-  // Load the example only for a fresh guest canvas (signed-in users restore their own data).
+  // Load the example whenever a guest lands on an empty canvas (fresh visit or
+  // after signing out). Signed-in users restore their own data instead.
   useEffect(() => {
-    if (dismissed || !me?.guest) return
-    const st = useGraphStore.getState()
-    if (st.nodes.length === 0 && st.status === 'idle') loadExample(EXAMPLE_TOPIC)
-  }, [me, dismissed, loadExample])
+    if (dismissed || !me?.guest || !emptyCanvas) return
+    loadExample(EXAMPLE_TOPIC)
+  }, [me, dismissed, emptyCanvas, loadExample])
 
   useEffect(() => {
     const show = !dismissed && isExample

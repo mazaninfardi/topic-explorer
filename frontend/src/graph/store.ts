@@ -28,7 +28,7 @@ export function termKey(term: string): string {
   return k.length > 3 && k.endsWith('s') && !k.endsWith('ss') ? k.slice(0, -1) : k
 }
 
-const familiarKey = (term: string) => term.trim().toLowerCase()
+export const familiarKey = (term: string) => term.trim().toLowerCase()
 
 /**
  * Repair the edge set so a race (or an old saved graph) can't leave it
@@ -52,34 +52,41 @@ export function sanitizeEdges(nodes: TGNode[], edges: TGEdge[]): TGEdge[] {
   return out
 }
 
-/** Hide each node in `hiddenSet` together with its whole subtree, then re-flow. */
-export function reflow(nodes: TGNode[], edges: TGEdge[], hiddenSet: Set<string>) {
-  edges = sanitizeEdges(nodes, edges)
-  const childrenOf = new Map<string, string[]>()
-  for (const e of edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
-  const hidden = new Set<string>()
-  const visit = (id: string) => {
-    for (const child of childrenOf.get(id) ?? []) if (!hidden.has(child)) { hidden.add(child); visit(child) }
+function childrenMap(edges: TGEdge[]): Map<string, string[]> {
+  const m = new Map<string, string[]>()
+  for (const e of edges) m.set(e.source, [...(m.get(e.source) ?? []), e.target])
+  return m
+}
+
+/** Node ids reachable from `start` (its subtree), excluding `start` itself. */
+function reachableFrom(start: string, children: Map<string, string[]>): Set<string> {
+  const out = new Set<string>()
+  const stack = [...(children.get(start) ?? [])]
+  for (let n = stack.pop(); n !== undefined; n = stack.pop()) {
+    if (out.has(n)) continue
+    out.add(n)
+    for (const c of children.get(n) ?? []) stack.push(c)
   }
-  for (const h of hiddenSet) {
-    hidden.add(h)
-    visit(h)
-  }
-  const nextNodes = nodes.map((n) => ({ ...n, hidden: hidden.has(n.id) }))
-  const nextEdges = edges.map((e) => ({ ...e, hidden: hidden.has(e.source) || hidden.has(e.target) }))
-  return { nodes: layoutGraph(nextNodes, nextEdges), edges: nextEdges }
+  return out
 }
 
 /** Node ids reachable from `id` (its subtree). */
 function descendantsOf(id: string, edges: TGEdge[]): Set<string> {
-  const childrenOf = new Map<string, string[]>()
-  for (const e of edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
-  const out = new Set<string>()
-  const visit = (n: string) => {
-    for (const c of childrenOf.get(n) ?? []) if (!out.has(c)) { out.add(c); visit(c) }
+  return reachableFrom(id, childrenMap(edges))
+}
+
+/** Hide each node in `hiddenSet` together with its whole subtree, then re-flow. */
+export function reflow(nodes: TGNode[], edges: TGEdge[], hiddenSet: Set<string>) {
+  edges = sanitizeEdges(nodes, edges)
+  const children = childrenMap(edges)
+  const hidden = new Set<string>()
+  for (const h of hiddenSet) {
+    hidden.add(h)
+    for (const d of reachableFrom(h, children)) hidden.add(d)
   }
-  visit(id)
-  return out
+  const nextNodes = nodes.map((n) => ({ ...n, hidden: hidden.has(n.id) }))
+  const nextEdges = edges.map((e) => ({ ...e, hidden: hidden.has(e.source) || hidden.has(e.target) }))
+  return { nodes: layoutGraph(nextNodes, nextEdges), edges: nextEdges }
 }
 
 interface GraphState {
@@ -92,7 +99,6 @@ interface GraphState {
   currentTopic: { id: string; title: string } | null
   status: ExtractStatus
   error: string | null
-  needsSignIn: boolean
   unsubscribe: (() => void) | null
   /** Changes when a whole new graph is shown (explore/load/example) — the cue to fit-to-view once. */
   topicKey: string
@@ -118,6 +124,23 @@ interface GraphState {
 
 const DEFINE_TIMEOUT_MS = 30000
 
+/** The state patch for showing a whole stored graph (a saved topic or the example). */
+function recordToState(rec: TopicRecord, isExample: boolean) {
+  const g = rec.graph
+  const hidden = new Set(g.hidden ?? [])
+  return {
+    ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], hidden),
+    specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
+    hidden,
+    pending: g.pending as GraphState['pending'],
+    currentTopic: { id: rec.arxiv_id, title: rec.title },
+    status: 'ready' as const,
+    topicKey: newTopicKey(),
+    lastAddedId: null,
+    isExample,
+  }
+}
+
 export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
   edges: [],
@@ -128,7 +151,6 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   currentTopic: null,
   status: 'idle',
   error: null,
-  needsSignIn: false,
   unsubscribe: null,
   topicKey: 'empty',
   lastAddedId: null,
@@ -159,7 +181,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
       onError: (message) =>
         message === 'guest-limit'
-          ? set({ status: 'error', error: 'You’ve reached the 5-paper limit for guests. Sign in to keep exploring.', needsSignIn: true, nodes: [], edges: [] })
+          ? set({ status: 'error', error: 'You’ve reached the 5-paper limit for guests. Sign in to keep exploring.', nodes: [], edges: [] })
           : set({ status: 'error', error: message, nodes: [], edges: [] }),
     })
     set({
@@ -175,19 +197,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   loadExample: (rec) => {
     get().reset()
-    const g = rec.graph
-    const hidden = new Set(g.hidden ?? [])
-    set({
-      ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], hidden),
-      specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
-      hidden,
-      pending: g.pending as GraphState['pending'],
-      currentTopic: { id: rec.arxiv_id, title: rec.title },
-      status: 'ready',
-      topicKey: newTopicKey(),
-      lastAddedId: null,
-      isExample: true,
-    })
+    set(recordToState(rec, true))
   },
 
   openSpecial: (kind) => {
@@ -317,19 +327,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   loadTopic: (rec) => {
     get().reset()
-    const g = rec.graph
-    const hidden = new Set(g.hidden ?? [])
-    set({
-      ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], hidden),
-      specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
-      hidden,
-      pending: g.pending as GraphState['pending'],
-      currentTopic: { id: rec.arxiv_id, title: rec.title },
-      status: 'ready',
-      topicKey: newTopicKey(),
-      lastAddedId: null,
-      isExample: false,
-    })
+    set(recordToState(rec, false))
   },
 
   relayout: () => set((s) => ({ ...reflow(s.nodes, s.edges, s.hidden) })),
@@ -347,7 +345,6 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       currentTopic: null,
       status: 'idle',
       error: null,
-      needsSignIn: false,
       unsubscribe: null,
       lastAddedId: null,
       isExample: false,

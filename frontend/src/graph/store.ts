@@ -26,8 +26,31 @@ export function termKey(term: string): string {
 
 const familiarKey = (term: string) => term.trim().toLowerCase()
 
+/**
+ * Repair the edge set so a race (or an old saved graph) can't leave it
+ * inconsistent: no self-loops, no duplicates, at most one parent per node,
+ * Why/How parented only by the root, and no edges to/from missing nodes.
+ */
+export function sanitizeEdges(nodes: TGNode[], edges: TGEdge[]): TGEdge[] {
+  const ids = new Set(nodes.map((n) => n.id))
+  const kindOf = new Map(nodes.map((n) => [n.id, n.data.kind]))
+  const parentChosen = new Set<string>()
+  const out: TGEdge[] = []
+  for (const e of edges) {
+    if (e.source === e.target) continue
+    if (!ids.has(e.source) || !ids.has(e.target)) continue
+    const targetKind = kindOf.get(e.target)
+    if ((targetKind === 'why' || targetKind === 'how') && e.source !== ROOT_ID) continue
+    if (parentChosen.has(e.target)) continue // one parent per node (keep first valid)
+    parentChosen.add(e.target)
+    out.push({ ...e, id: `e-${e.source}-${e.target}` })
+  }
+  return out
+}
+
 /** Hide each node in `hiddenSet` together with its whole subtree, then re-flow. */
 export function reflow(nodes: TGNode[], edges: TGEdge[], hiddenSet: Set<string>) {
+  edges = sanitizeEdges(nodes, edges)
   const childrenOf = new Map<string, string[]>()
   for (const e of edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
   const hidden = new Set<string>()

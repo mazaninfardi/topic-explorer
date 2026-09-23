@@ -9,12 +9,15 @@ from .config import settings
 def _create_engine():
     # Prod: Cloud SQL via the Python Connector (Admin API — no socket path).
     if settings.instance_connection_name:
-        from google.cloud.sql.connector import Connector
+        from google.cloud.sql.connector import create_async_connector
 
-        connector = Connector()
+        holder: dict = {}
 
         async def getconn():
-            return await connector.connect_async(
+            # Create the connector lazily, bound to the running event loop.
+            if "connector" not in holder:
+                holder["connector"] = await create_async_connector()
+            return await holder["connector"].connect_async(
                 settings.instance_connection_name,
                 "asyncpg",
                 user=settings.db_user,

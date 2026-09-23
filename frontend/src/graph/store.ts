@@ -13,12 +13,18 @@ export const ROOT_ID = 'root'
 export type SpecialKind = 'why' | 'how'
 export type ExtractStatus = 'idle' | 'extracting' | 'ready' | 'error'
 
-let idCounter = 0
-const nextId = () => `n${(idCounter += 1)}`
-
 let topicNonce = 0
 /** A fresh key each time a whole new graph is shown, so the canvas fits once. */
-const newTopicKey = () => `t${(topicNonce += 1)}`
+const newTopicKey = () => `k${(topicNonce += 1)}`
+
+/**
+ * Deterministic, collision-free node ids. Terms are unique (deduped by
+ * `termKey`), so a term's id is its canonical key — bijective with dedup, and
+ * stable across sessions/reloads. Specials get their kind; the root is ROOT_ID.
+ * This removes the whole class of id-collision bugs a session-local counter had
+ * (a restored graph's `n5` vs. a freshly minted `n5`).
+ */
+const termNodeId = (term: string) => `term:${termKey(term)}`
 
 const ORIGIN = { x: 0, y: 0 }
 
@@ -215,7 +221,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       return
     }
 
-    const id = nextId()
+    const id = kind
     const node: TGNode = { id, type: kind, position: ORIGIN, data: { kind, text: content.text, terms: content.terms } }
     const edges = [...s.edges, { id: `e-${ROOT_ID}-${id}`, source: ROOT_ID, target: id }]
     const opened = new Set(s.specialsOpened)
@@ -254,7 +260,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     }
     if (existing) return
 
-    const id = nextId()
+    const id = termNodeId(term)
     const node: TGNode = { id, type: 'salient-term', position: ORIGIN, data: { kind: 'salient-term', text: '', terms: [], term, loading: true } }
     const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
     set({ ...reflow([...withTermChip(s.nodes), node], edges, s.hidden), lastAddedId: id })

@@ -130,6 +130,29 @@ describe('graph store', () => {
     expect(useGraphStore.getState().lastAddedId).toBe(child.id)
   })
 
+  it('after loading a saved graph, new nodes never collide with restored ids', () => {
+    // A restored topic keeps ids like n5; the next created node must be n6+, not n1.
+    useGraphStore.getState().loadTopic({
+      arxiv_id: '1512.03385',
+      title: 'ResNet',
+      graph: {
+        nodes: [
+          { id: ROOT_ID, type: 'what', position: { x: 0, y: 0 }, data: { kind: 'what', text: 'W with foo', terms: ['foo'] } },
+          { id: 'n5', type: 'how', position: { x: 0, y: 0 }, data: { kind: 'how', text: 'How body', terms: [] } },
+        ],
+        edges: [{ id: 'e-root-n5', source: ROOT_ID, target: 'n5' }],
+        specialsOpened: ['how'],
+        pending: {},
+        hidden: [],
+      },
+    })
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    const ids = useGraphStore.getState().nodes.map((n) => n.id)
+    expect(new Set(ids).size).toBe(ids.length) // no duplicate ids
+    expect(ids).toContain('n5') // the How node survived
+    expect(useGraphStore.getState().nodes.find((n) => n.id === 'n5')!.data.kind).toBe('how')
+  })
+
   it('loadExample marks the graph as an example', () => {
     useGraphStore.getState().loadExample({
       arxiv_id: 'example',

@@ -145,7 +145,18 @@ Everything in Pre-MVP, plus:
 
 **Acceptance:** the core explore → expand loop works on a phone.
 
-### Beyond M4 (future)
+### M5 — deeper learning, media & authoring
+Turn one-shot exploration into a durable learning tool.
+- **Expand a term further** — go deeper on an already-defined term (more detail / another hop on demand, beyond the first plain-language definition).
+- **YouTube integration** — surface a relevant explainer video for a topic or term.
+- **More sources of information** — beyond arXiv/PDF: web articles, textbooks, docs (extends M3's richer input).
+- **Search across explored topics** — find within your own saved explorations, not just a new lookup (extends M3's omnisearch).
+- **Build a slide deck** from the explored items, as a study/review artifact for later learning.
+- **Recall testing on known terms** — quiz yourself on terms you marked known (extends M3's remembered-how-well score).
+
+**Acceptance:** a user can go deeper on a term, pull in a video and other sources, search their own history, generate a study deck, and self-test on known terms.
+
+### Beyond M5 (future)
 Scalability and caching as usage grows (model-response caching, shared topic graphs, multi-model support via the model adapter), plus a considered visual identity (UX review §4.5). Out of scope for now.
 
 ---

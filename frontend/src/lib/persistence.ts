@@ -20,7 +20,9 @@ function scheduleSave() {
   if (!useAuthStore.getState().me?.authenticated) return // guests don't persist
   const s = useGraphStore.getState()
   const root = s.nodes.find((n) => n.id === ROOT_ID)
-  if (!s.currentTopic || !root || root.data.loading) return
+  if (!s.currentTopic || !root) return
+  // Don't persist a mid-load graph (would restore a stuck "loading" box).
+  if (s.nodes.some((n) => n.data.loading)) return
   clearTimeout(timer)
   timer = setTimeout(() => {
     const cur = useGraphStore.getState()

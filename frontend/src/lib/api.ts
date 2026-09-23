@@ -28,12 +28,8 @@ export interface Me {
   guest_limit?: number
 }
 
-/** Raised when the server rejects a guest for exceeding the paper limit. */
-export class GuestLimitError extends Error {}
-
 async function j<T>(url: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(url, { credentials: 'same-origin', ...opts })
-  if (r.status === 403) throw new GuestLimitError('guest-limit')
   if (!r.ok) throw new Error(`${opts?.method ?? 'GET'} ${url} failed (${r.status})`)
   return r.json() as Promise<T>
 }

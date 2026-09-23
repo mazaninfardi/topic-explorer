@@ -194,6 +194,20 @@ async def remove_familiar(term: str, user: User = Depends(current_user), session
 
 # ---------------------------------------------------------------- extract / define
 
+async def _record_guest_paper(user: User, paper_id: str) -> None:
+    """Count a paper against a guest's free quota — only after a real result."""
+    if not user.is_guest:
+        return
+    async with SessionLocal() as s:
+        guser = await s.get(User, user.id)
+        if guser is None:
+            return
+        explored = list(guser.explored or [])
+        if paper_id not in explored:
+            guser.explored = [*explored, paper_id]
+            await s.commit()
+
+
 @app.get("/api/extract")
 async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingResponse:
     async def gen():
@@ -210,22 +224,25 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
                 return
         url = f"https://arxiv.org/abs/{paper_id}"
 
+        cached_what = cached_why = cached_how = None
         async with SessionLocal() as s:
             cached = await s.get(PaperAnalysis, paper_id)
+            if cached is not None:
+                cached_what, cached_why, cached_how = cached.what, cached.why, cached.how
             if user.is_guest:
                 guser = await s.get(User, user.id)
                 explored = list(guser.explored or []) if guser else []
                 if paper_id not in explored and len(explored) >= settings.guest_paper_limit:
                     yield _sse("error", {"message": "guest-limit"})
                     return
-                if guser is not None and paper_id not in explored:
-                    guser.explored = [*explored, paper_id]  # trial counter (ids only)
-                    await s.commit()
-            if cached is not None:
-                yield _sse("what", cached.what)
-                yield _sse("why", cached.why)
-                yield _sse("how", cached.how)
-                return
+
+        if cached_what is not None:
+            # A cached hit is a guaranteed result — count the guest's paper now.
+            await _record_guest_paper(user, paper_id)
+            yield _sse("what", cached_what)
+            yield _sse("why", cached_why)
+            yield _sse("how", cached_how)
+            return
 
         try:
             pdf = await fetch_pdf(paper_id)
@@ -237,6 +254,8 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
             what = await _get_extractor().extract_what(pdf)
             what = {**what, "title": await title_task, "url": url}
             yield _sse("what", what)
+            # Only count the guest's paper once we've actually produced a result.
+            await _record_guest_paper(user, paper_id)
             why_how = await _get_extractor().extract_why_how(pdf)
             async with SessionLocal() as s:
                 if await s.get(PaperAnalysis, paper_id) is None:

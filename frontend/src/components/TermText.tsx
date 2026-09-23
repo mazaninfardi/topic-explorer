@@ -23,7 +23,6 @@ export function TermText({ text, terms, onTermClick }: TermTextProps) {
 
   if (terms.length === 0) return <span>{text}</span>
 
-  const familiarLc = new Set([...familiar].map((t) => t.toLowerCase()))
   const canonical = new Map(terms.map((t) => [t.toLowerCase(), t]))
   const pattern = new RegExp(`\\b(${terms.map(escapeRegExp).join('|')})\\b`, 'gi')
   const parts = text.split(pattern)
@@ -33,7 +32,7 @@ export function TermText({ text, terms, onTermClick }: TermTextProps) {
       {parts.map((part, i) => {
         const term = canonical.get(part.toLowerCase())
         if (!term) return <span key={i}>{part}</span>
-        const isFamiliar = familiarLc.has(part.toLowerCase())
+        const isFamiliar = familiar.has(part.toLowerCase())
         return (
           <button
             key={i}

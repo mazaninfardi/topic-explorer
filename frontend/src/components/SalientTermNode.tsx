@@ -1,12 +1,12 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
-import { useGraphStore } from '../graph/store'
+import { familiarKey, useGraphStore } from '../graph/store'
 import { useJustAdded } from '../graph/useJustAdded'
 import { TermText } from './TermText'
 import { NodeControls } from './NodeControls'
 
 function KnownButton({ nodeId, term, definition }: { nodeId: string; term: string; definition: string }) {
-  const isKnown = useGraphStore((s) => s.familiar.has(term))
+  const isKnown = useGraphStore((s) => s.familiar.has(familiarKey(term)))
   const markKnown = useGraphStore((s) => s.markKnown)
   const toggleFamiliar = useGraphStore((s) => s.toggleFamiliar)
 

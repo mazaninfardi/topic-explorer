@@ -8,7 +8,6 @@ export interface TopicRecord {
 export interface StoredGraph {
   nodes: unknown[]
   edges: unknown[]
-  expansions: string[]
   specialsOpened: string[]
   pending: Record<string, unknown>
   hidden?: string[]

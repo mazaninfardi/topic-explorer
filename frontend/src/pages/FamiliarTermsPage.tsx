@@ -7,7 +7,20 @@ export function FamiliarTermsPage() {
   const toggleFamiliar = useGraphStore((s) => s.toggleFamiliar)
 
   useEffect(() => {
-    api.listFamiliar().then(setRecords).catch(() => setRecords([]))
+    api
+      .listFamiliar()
+      .then((rs) => {
+        const seen = new Set<string>()
+        setRecords(
+          rs.filter((r) => {
+            const k = r.term.trim().toLowerCase()
+            if (seen.has(k)) return false
+            seen.add(k)
+            return true
+          }),
+        )
+      })
+      .catch(() => setRecords([]))
   }, [])
 
   const forget = (term: string) => {

@@ -4,7 +4,10 @@ import type { TGEdge, TGNode } from './types'
 import { layoutGraph } from './layout'
 import { contentSource } from '../content'
 import { arxivIdOf } from '../lib/arxiv'
-import { addFamiliar, removeFamiliar, type TopicRecord } from '../lib/db'
+import { api, type TopicRecord } from '../lib/api'
+import { useAuthStore } from '../lib/auth'
+
+const canPersist = () => Boolean(useAuthStore.getState().me?.authenticated)
 
 export const ROOT_ID = 'root'
 export type SpecialKind = 'why' | 'how'
@@ -47,6 +50,7 @@ interface GraphState {
   currentTopic: { id: string; title: string } | null
   status: ExtractStatus
   error: string | null
+  needsSignIn: boolean
   unsubscribe: (() => void) | null
 
   explore: (ref: string) => void
@@ -76,6 +80,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   currentTopic: null,
   status: 'idle',
   error: null,
+  needsSignIn: false,
   unsubscribe: null,
 
   explore: (ref) => {
@@ -108,7 +113,16 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         })),
       onWhy: (c) => set((s) => ({ pending: { ...s.pending, why: c } })),
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
-      onError: (message) => set({ status: 'error', error: message, nodes: [], edges: [] }),
+      onError: (message) =>
+        message === 'guest-limit'
+          ? set({
+              status: 'error',
+              error: 'You’ve reached the 5-paper limit for guests. Sign in to keep exploring.',
+              needsSignIn: true,
+              nodes: [],
+              edges: [],
+            })
+          : set({ status: 'error', error: message, nodes: [], edges: [] }),
     })
     set({
       nodes: [{ id: ROOT_ID, type: 'what', position: ORIGIN, data: { kind: 'what', text: '', terms: [], loading: true } }],
@@ -191,10 +205,10 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const familiar = new Set(get().familiar)
     if (familiar.has(term)) {
       familiar.delete(term)
-      void removeFamiliar(term)
+      if (canPersist()) void api.removeFamiliar(term).catch(() => {})
     } else {
       familiar.add(term)
-      void addFamiliar(term, definition)
+      if (canPersist()) void api.addFamiliar(term, definition).catch(() => {})
     }
     set({ familiar })
   },
@@ -202,7 +216,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   markKnown: (nodeId, term, definition) => {
     const familiar = new Set(get().familiar)
     familiar.add(term)
-    void addFamiliar(term, definition)
+    if (canPersist()) void api.addFamiliar(term, definition).catch(() => {})
     set((s) => ({
       familiar,
       nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, removing: true } } : n)),
@@ -242,7 +256,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
       hidden,
       pending: g.pending as GraphState['pending'],
-      currentTopic: { id: rec.id, title: rec.title },
+      currentTopic: { id: rec.arxiv_id, title: rec.title },
       status: 'ready',
     })
   },
@@ -263,6 +277,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       currentTopic: null,
       status: 'idle',
       error: null,
+      needsSignIn: false,
       unsubscribe: null,
       // `familiar` intentionally preserved across explorations.
     })

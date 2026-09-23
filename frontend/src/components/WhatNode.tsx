@@ -2,9 +2,9 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
 import { useGraphStore, type SpecialKind } from '../graph/store'
 import { TermText } from './TermText'
-import { CollapseToggle } from './CollapseToggle'
+import { NodeControls } from './NodeControls'
 
-/** Root node: the "What" headline, with Why/How actions and salient terms. */
+/** Root node: the paper (title) with its What summary, Why/How, salient terms. */
 export function WhatNode({ id, data }: NodeProps<TGNode>) {
   const expandTerm = useGraphStore((s) => s.expandTerm)
   const openSpecial = useGraphStore((s) => s.openSpecial)
@@ -29,17 +29,33 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
 
   return (
     <div className="max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-sky-600">What</span>
-        <CollapseToggle id={id} />
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-500">What</span>
+        <div className="flex items-center gap-2">
+          {data.paperUrl && (
+            <a
+              href={data.paperUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="nodrag nopan text-xs text-sky-600 underline hover:text-sky-800"
+            >
+              full paper ↗
+            </a>
+          )}
+          <NodeControls id={id} />
+        </div>
       </div>
+
       {data.loading ? (
         <div className="animate-pulse text-sm text-slate-400">Reading the paper…</div>
       ) : (
         <>
-          <div className="text-sm leading-relaxed text-slate-800">
+          {data.paperTitle && (
+            <h2 className="mb-1.5 text-base font-bold leading-snug text-slate-900">{data.paperTitle}</h2>
+          )}
+          <p data-node-id={id} className="nodrag select-text text-[13px] leading-relaxed text-slate-600">
             <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
-          </div>
+          </p>
           <div className="mt-3 flex gap-2">
             {action('why', 'Why')}
             {action('how', 'How')}

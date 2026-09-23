@@ -43,19 +43,28 @@ _AUDIENCE = (
     "field. Use plain, genuinely understandable language and avoid jargon."
 )
 
+# Shared rule for what counts as a salient term (quality bar).
+_SALIENT_RULE = (
+    "A salient term is a SPECIALIZED concept a curious non-expert could NOT understand "
+    "from a general dictionary — domain jargon, named methods/architectures/algorithms, "
+    "or ideas that need background (e.g. 'residual connection', 'attention mechanism', "
+    "'positional encoding'). Do NOT include ordinary words or generally-known terms "
+    "(e.g. 'training', 'accuracy', 'usefulness', 'performance', 'image', 'dataset'). "
+    "Each term MUST appear verbatim (exact substring) in the text. Prefer 3-6, but "
+    "return only the ones that truly qualify (fewer is fine, even zero)."
+)
+
 _WHAT_PROMPT = (
     f"{_AUDIENCE}\n\nFrom the attached paper, produce:\n"
     "- what: 2-3 plain sentences on what this paper is and what it found (its headline).\n"
-    "- salient_terms: 3-6 key technical terms that a newcomer would need defined. "
-    "Each term MUST appear verbatim (as an exact substring) in the `what` text."
+    f"- salient_terms: {_SALIENT_RULE}"
 )
 
 _WHY_HOW_PROMPT = (
     f"{_AUDIENCE}\n\nFrom the attached paper, produce:\n"
     "- why: 2-4 sentences on the prior context and the gap that motivated this work.\n"
-    "- why_terms: 3-6 key terms, each appearing verbatim in `why`.\n"
     "- how: 2-4 sentences on what the authors actually did (the method), in accessible terms.\n"
-    "- how_terms: 3-6 key terms, each appearing verbatim in `how`."
+    f"- why_terms / how_terms: for each of `why` and `how`, salient terms from that text. {_SALIENT_RULE}"
 )
 
 
@@ -115,11 +124,13 @@ class GeminiExtractor:
     async def define(self, term: str) -> dict:
         prompt = (
             f"{_AUDIENCE}\n\nDefine the term \"{term}\" in 1-2 plain sentences for a "
-            "newcomer.\n- text: the definition.\n- terms: 0-4 key words that appear "
-            "verbatim in `text` and are themselves worth exploring."
+            f"newcomer.\n- text: the definition.\n- terms: 0-4 salient terms. {_SALIENT_RULE} "
+            f"Do NOT include \"{term}\" itself (or a variant of it) in `terms` — a term "
+            "must never be a salient term inside its own definition."
         )
         data = await self._json([prompt], _DEFINE_SCHEMA)
-        return {
-            "text": data["text"],
-            "terms": _verbatim(data["text"], data.get("terms", [])),
-        }
+        terms = _verbatim(data["text"], data.get("terms", []))
+        # Guard against a cyclic definition: drop terms overlapping the defined term.
+        tl = term.lower()
+        terms = [t for t in terms if tl not in t.lower() and t.lower() not in tl]
+        return {"text": data["text"], "terms": terms}

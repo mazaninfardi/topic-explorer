@@ -7,4 +7,4 @@ import { BackendContentSource } from './BackendContentSource'
  */
 export const contentSource: ContentSource = new BackendContentSource()
 
-export type { ContentSource, NodeContent, ExploreHandlers } from './ContentSource'
+export type { ContentSource, NodeContent, WhatContent, ExploreHandlers } from './ContentSource'

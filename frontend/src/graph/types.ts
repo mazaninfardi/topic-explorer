@@ -18,6 +18,11 @@ export interface TGNodeData {
   loading?: boolean
   /** For a salient-term node: the term it defines (used for "familiar"). */
   term?: string
+  /** For the root What node: the paper's title and link. */
+  paperTitle?: string
+  paperUrl?: string
+  /** Transient flag: node is fading out before removal. */
+  removing?: boolean
   [key: string]: unknown
 }
 

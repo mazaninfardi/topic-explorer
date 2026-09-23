@@ -86,16 +86,16 @@ describe('graph store', () => {
     expect(useGraphStore.getState().error).toBe('boom')
   })
 
-  it('collapsing a node hides its descendants; expanding restores them', () => {
+  it('hiding a node hides it (and subtree); restoreChildren brings it back', () => {
     start()
     useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
     expect(useGraphStore.getState().nodes).toHaveLength(2)
-
-    useGraphStore.getState().toggleCollapse(ROOT_ID)
     const childId = useGraphStore.getState().nodes.find((n) => n.id !== ROOT_ID)!.id
+
+    useGraphStore.getState().hideNode(childId)
     expect(useGraphStore.getState().nodes.find((n) => n.id === childId)!.hidden).toBe(true)
 
-    useGraphStore.getState().toggleCollapse(ROOT_ID)
+    useGraphStore.getState().restoreChildren(ROOT_ID)
     expect(useGraphStore.getState().nodes.find((n) => n.id === childId)!.hidden).toBe(false)
   })
 

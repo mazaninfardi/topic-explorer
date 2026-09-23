@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -7,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .arxiv import IngestionError, arxiv_id, fetch_pdf
+from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title
 from .gemini import GeminiExtractor
 
 app = FastAPI(title="Topic Explorer BFF")
@@ -42,6 +43,7 @@ async def extract(arxiv: str) -> StreamingResponse:
         except IngestionError as exc:
             yield _sse("error", {"message": str(exc)})
             return
+        url = f"https://arxiv.org/abs/{paper_id}"
 
         cached = _extract_cache.get(paper_id)
         if cached is not None:
@@ -55,8 +57,10 @@ async def extract(arxiv: str) -> StreamingResponse:
         except IngestionError as exc:
             yield _sse("error", {"message": str(exc)})
             return
+        title_task = asyncio.create_task(fetch_title(arxiv))
         try:
             what = await _get_extractor().extract_what(pdf)
+            what = {**what, "title": await title_task, "url": url}
             yield _sse("what", what)
             why_how = await _get_extractor().extract_why_how(pdf)
             # Cache BEFORE the final yields: the client closes the stream on
@@ -66,6 +70,7 @@ async def extract(arxiv: str) -> StreamingResponse:
             yield _sse("why", why_how["why"])
             yield _sse("how", why_how["how"])
         except Exception:  # noqa: BLE001 - surface a clean error to the client
+            title_task.cancel()
             yield _sse("error", {"message": "Extraction failed. Please try again."})
 
     return StreamingResponse(

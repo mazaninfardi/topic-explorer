@@ -9,7 +9,7 @@ function serialize(): StoredGraph {
     expansions: [...s.expansions],
     specialsOpened: [...s.specialsOpened],
     pending: s.pending,
-    collapsed: [...s.collapsed],
+    hidden: [...s.hidden],
   }
 }
 

@@ -17,24 +17,19 @@ const expansionKey = (parentId: string, term: string) =>
 
 const ORIGIN = { x: 0, y: 0 }
 
-/** Compute descendant-of-collapsed hidden flags and re-flow the visible graph. */
-export function reflow(nodes: TGNode[], edges: TGEdge[], collapsed: Set<string>) {
+/** Hide each node in `hiddenSet` together with its whole subtree, then re-flow. */
+export function reflow(nodes: TGNode[], edges: TGEdge[], hiddenSet: Set<string>) {
   const childrenOf = new Map<string, string[]>()
-  for (const e of edges) {
-    const arr = childrenOf.get(e.source) ?? []
-    arr.push(e.target)
-    childrenOf.set(e.source, arr)
-  }
+  for (const e of edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
+
   const hidden = new Set<string>()
   const visit = (id: string) => {
-    for (const child of childrenOf.get(id) ?? []) {
-      if (!hidden.has(child)) {
-        hidden.add(child)
-        visit(child)
-      }
-    }
+    for (const child of childrenOf.get(id) ?? []) if (!hidden.has(child)) { hidden.add(child); visit(child) }
   }
-  for (const c of collapsed) visit(c)
+  for (const h of hiddenSet) {
+    hidden.add(h)
+    visit(h)
+  }
 
   const nextNodes = nodes.map((n) => ({ ...n, hidden: hidden.has(n.id) }))
   const nextEdges = edges.map((e) => ({ ...e, hidden: hidden.has(e.source) || hidden.has(e.target) }))
@@ -46,7 +41,7 @@ interface GraphState {
   edges: TGEdge[]
   expansions: Set<string>
   specialsOpened: Set<SpecialKind>
-  collapsed: Set<string>
+  hidden: Set<string>
   familiar: Set<string>
   pending: { why?: { text: string; terms: string[] }; how?: { text: string; terms: string[] } }
   currentTopic: { id: string; title: string } | null
@@ -57,10 +52,15 @@ interface GraphState {
   explore: (ref: string) => void
   openSpecial: (kind: SpecialKind) => void
   expandTerm: (parentId: string, term: string) => void
-  toggleCollapse: (id: string) => void
-  toggleFamiliar: (term: string) => void
+  /** Hide a single node (and its subtree). */
+  hideNode: (id: string) => void
+  /** Restore the directly-hidden children of a node. */
+  restoreChildren: (parentId: string) => void
+  toggleFamiliar: (term: string, definition?: string) => void
+  markKnown: (nodeId: string, term: string, definition: string) => void
   setFamiliar: (terms: string[]) => void
   loadTopic: (rec: TopicRecord) => void
+  relayout: () => void
   onNodesChange: (changes: NodeChange<TGNode>[]) => void
   reset: () => void
 }
@@ -70,7 +70,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   edges: [],
   expansions: new Set<string>(),
   specialsOpened: new Set<SpecialKind>(),
-  collapsed: new Set<string>(),
+  hidden: new Set<string>(),
   familiar: new Set<string>(),
   pending: {},
   currentTopic: null,
@@ -86,13 +86,25 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         set((s) => ({
           ...reflow(
             s.nodes.map((n) =>
-              n.id === ROOT_ID ? { ...n, data: { ...n.data, text: c.text, terms: c.terms, loading: false } } : n,
+              n.id === ROOT_ID
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      text: c.text,
+                      terms: c.terms,
+                      loading: false,
+                      paperTitle: c.title ?? undefined,
+                      paperUrl: c.url,
+                    },
+                  }
+                : n,
             ),
             s.edges,
-            s.collapsed,
+            s.hidden,
           ),
           status: 'ready',
-          currentTopic: { id, title: c.text.slice(0, 60) },
+          currentTopic: { id, title: c.title || c.text.slice(0, 60) },
         })),
       onWhy: (c) => set((s) => ({ pending: { ...s.pending, why: c } })),
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
@@ -117,7 +129,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const edges = [...s.edges, { id: `e-${ROOT_ID}-${id}`, source: ROOT_ID, target: id }]
     const opened = new Set(s.specialsOpened)
     opened.add(kind)
-    set({ ...reflow([...s.nodes, node], edges, s.collapsed), specialsOpened: opened })
+    set({ ...reflow([...s.nodes, node], edges, s.hidden), specialsOpened: opened })
   },
 
   expandTerm: (parentId, term) => {
@@ -133,17 +145,24 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       position: ORIGIN,
       data: { kind: 'salient-term', text: '', terms: [], term, loading: true },
     }
+    // Ensure the term is a salient term on its parent (so a user-selected
+    // phrase becomes an underlined chip, familiar-marking, etc.).
+    const parents = s.nodes.map((n) =>
+      n.id === parentId && !n.data.terms.some((t) => t.toLowerCase() === term.toLowerCase())
+        ? { ...n, data: { ...n.data, terms: [...n.data.terms, term] } }
+        : n,
+    )
     const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
     const expansions = new Set(s.expansions)
     expansions.add(key)
-    set({ ...reflow([...s.nodes, node], edges, s.collapsed), expansions })
+    set({ ...reflow([...parents, node], edges, s.hidden), expansions })
 
     const fill = (text: string, terms: string[]) =>
       set((st) => ({
         ...reflow(
           st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, text, terms, loading: false } } : n)),
           st.edges,
-          st.collapsed,
+          st.hidden,
         ),
       }))
 
@@ -153,24 +172,62 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       .catch(() => fill('Definition unavailable.', []))
   },
 
-  toggleCollapse: (id) => {
+  hideNode: (id) => {
+    if (id === ROOT_ID) return
     const s = get()
-    const collapsed = new Set(s.collapsed)
-    if (collapsed.has(id)) collapsed.delete(id)
-    else collapsed.add(id)
-    set({ ...reflow(s.nodes, s.edges, collapsed), collapsed })
+    const hidden = new Set(s.hidden)
+    hidden.add(id)
+    set({ ...reflow(s.nodes, s.edges, hidden), hidden })
   },
 
-  toggleFamiliar: (term) => {
+  restoreChildren: (parentId) => {
+    const s = get()
+    const hidden = new Set(s.hidden)
+    for (const e of s.edges) if (e.source === parentId) hidden.delete(e.target)
+    set({ ...reflow(s.nodes, s.edges, hidden), hidden })
+  },
+
+  toggleFamiliar: (term, definition = '') => {
     const familiar = new Set(get().familiar)
     if (familiar.has(term)) {
       familiar.delete(term)
       void removeFamiliar(term)
     } else {
       familiar.add(term)
-      void addFamiliar(term)
+      void addFamiliar(term, definition)
     }
     set({ familiar })
+  },
+
+  markKnown: (nodeId, term, definition) => {
+    const familiar = new Set(get().familiar)
+    familiar.add(term)
+    void addFamiliar(term, definition)
+    set((s) => ({
+      familiar,
+      nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, removing: true } } : n)),
+    }))
+    setTimeout(() => {
+      const s = get()
+      const remove = new Set<string>([nodeId])
+      const childrenOf = new Map<string, string[]>()
+      for (const e of s.edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
+      const visit = (id: string) => {
+        for (const child of childrenOf.get(id) ?? []) if (!remove.has(child)) { remove.add(child); visit(child) }
+      }
+      visit(nodeId)
+      // Drop the expansion keys of removed term nodes so they can be re-opened.
+      const removedKeys = new Set<string>()
+      for (const n of s.nodes) {
+        if (!remove.has(n.id) || !n.data.term) continue
+        const parentEdge = s.edges.find((e) => e.target === n.id)
+        if (parentEdge) removedKeys.add(`${parentEdge.source}::${n.data.term.toLowerCase()}`)
+      }
+      const nodes = s.nodes.filter((n) => !remove.has(n.id))
+      const edges = s.edges.filter((e) => !remove.has(e.source) && !remove.has(e.target))
+      const expansions = new Set([...s.expansions].filter((k) => !removedKeys.has(k)))
+      set({ ...reflow(nodes, edges, s.hidden), expansions })
+    }, 260)
   },
 
   setFamiliar: (terms) => set({ familiar: new Set(terms) }),
@@ -178,17 +235,19 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   loadTopic: (rec) => {
     get().reset()
     const g = rec.graph
-    const collapsed = new Set(g.collapsed)
+    const hidden = new Set(g.hidden ?? [])
     set({
-      ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], collapsed),
+      ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], hidden),
       expansions: new Set(g.expansions),
       specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
-      collapsed,
+      hidden,
       pending: g.pending as GraphState['pending'],
       currentTopic: { id: rec.id, title: rec.title },
       status: 'ready',
     })
   },
+
+  relayout: () => set((s) => ({ ...reflow(s.nodes, s.edges, s.hidden) })),
 
   onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
 
@@ -199,7 +258,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       edges: [],
       expansions: new Set<string>(),
       specialsOpened: new Set<SpecialKind>(),
-      collapsed: new Set<string>(),
+      hidden: new Set<string>(),
       pending: {},
       currentTopic: null,
       status: 'idle',

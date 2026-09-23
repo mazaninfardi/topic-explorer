@@ -2,6 +2,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
 import { useGraphStore } from '../graph/store'
 import { TermText } from './TermText'
+import { CollapseToggle } from './CollapseToggle'
 
 const STYLES = {
   why: { border: 'border-amber-400', label: 'text-amber-600' },
@@ -16,8 +17,11 @@ export function SpecialNode({ id, data }: NodeProps<TGNode>) {
 
   return (
     <div className={`max-w-sm rounded-xl border ${style.border} bg-white p-4 shadow-sm`}>
-      <div className={`mb-1 text-xs font-semibold uppercase tracking-wide ${style.label}`}>
-        {kind === 'why' ? 'Why' : 'How'}
+      <div className="mb-1 flex items-center justify-between">
+        <span className={`text-xs font-semibold uppercase tracking-wide ${style.label}`}>
+          {kind === 'why' ? 'Why' : 'How'}
+        </span>
+        <CollapseToggle id={id} />
       </div>
       <div className="text-sm leading-relaxed text-slate-700">
         <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />

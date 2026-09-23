@@ -25,6 +25,7 @@ const start = (what = { text: 'What text with foo', terms: ['foo'] }) => {
 
 beforeEach(() => {
   useGraphStore.getState().reset()
+  useGraphStore.getState().setFamiliar([])
   h.handlers = null
   h.defineTerm.mockClear()
 })
@@ -83,5 +84,30 @@ describe('graph store', () => {
     h.handlers!.onError('boom')
     expect(useGraphStore.getState().status).toBe('error')
     expect(useGraphStore.getState().error).toBe('boom')
+  })
+
+  it('collapsing a node hides its descendants; expanding restores them', () => {
+    start()
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    expect(useGraphStore.getState().nodes).toHaveLength(2)
+
+    useGraphStore.getState().toggleCollapse(ROOT_ID)
+    const childId = useGraphStore.getState().nodes.find((n) => n.id !== ROOT_ID)!.id
+    expect(useGraphStore.getState().nodes.find((n) => n.id === childId)!.hidden).toBe(true)
+
+    useGraphStore.getState().toggleCollapse(ROOT_ID)
+    expect(useGraphStore.getState().nodes.find((n) => n.id === childId)!.hidden).toBe(false)
+  })
+
+  it('toggleFamiliar flips membership', () => {
+    useGraphStore.getState().toggleFamiliar('gradient')
+    expect(useGraphStore.getState().familiar.has('gradient')).toBe(true)
+    useGraphStore.getState().toggleFamiliar('gradient')
+    expect(useGraphStore.getState().familiar.has('gradient')).toBe(false)
+  })
+
+  it('tracks the current topic id from the ref', () => {
+    useGraphStore.getState().explore('https://arxiv.org/abs/1512.03385')
+    expect(useGraphStore.getState().currentTopic?.id).toBe('1512.03385')
   })
 })

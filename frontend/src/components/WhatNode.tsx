@@ -2,6 +2,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
 import { useGraphStore, type SpecialKind } from '../graph/store'
 import { TermText } from './TermText'
+import { CollapseToggle } from './CollapseToggle'
 
 /** Root node: the "What" headline, with Why/How actions and salient terms. */
 export function WhatNode({ id, data }: NodeProps<TGNode>) {
@@ -28,7 +29,10 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
 
   return (
     <div className="max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-sky-600">What</div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-sky-600">What</span>
+        <CollapseToggle id={id} />
+      </div>
       {data.loading ? (
         <div className="animate-pulse text-sm text-slate-400">Reading the paper…</div>
       ) : (

@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
+import httpx
 import jwt
 from fastapi import Request, Response
 from google.auth.transport import requests as google_requests
@@ -8,6 +10,9 @@ from google.oauth2 import id_token as google_id_token
 from .config import settings
 from .db import SessionLocal
 from .models import User
+
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 COOKIE = "te_session"
 _ALG = "HS256"
@@ -49,8 +54,39 @@ async def current_user(request: Request, response: Response) -> User:
     return user
 
 
-def verify_google_token(credential: str) -> dict:
-    """Verify a Google ID token; returns its claims (raises on failure)."""
+def redirect_uri() -> str:
+    return f"{settings.app_base_url}/api/auth/callback"
+
+
+def build_auth_url(state: str) -> str:
+    """The Google consent URL to redirect the user to (authorization-code flow)."""
+    params = {
+        "client_id": settings.google_client_id,
+        "redirect_uri": redirect_uri(),
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
+
+
+async def exchange_code(code: str) -> dict:
+    """Exchange an auth code for tokens and return the verified ID-token claims."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": redirect_uri(),
+                "grant_type": "authorization_code",
+            },
+        )
+        resp.raise_for_status()
+        id_tok = resp.json()["id_token"]
     return google_id_token.verify_oauth2_token(
-        credential, google_requests.Request(), settings.google_client_id
+        id_tok, google_requests.Request(), settings.google_client_id
     )

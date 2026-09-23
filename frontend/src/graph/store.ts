@@ -5,6 +5,9 @@ import { layoutGraph } from './layout'
 import { contentSource } from '../content'
 import { arxivIdOf } from '../lib/arxiv'
 import { api, type TopicRecord } from '../lib/api'
+import { useAuthStore } from '../lib/auth'
+
+const canPersist = () => Boolean(useAuthStore.getState().me?.authenticated)
 
 export const ROOT_ID = 'root'
 export type SpecialKind = 'why' | 'how'
@@ -202,10 +205,10 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const familiar = new Set(get().familiar)
     if (familiar.has(term)) {
       familiar.delete(term)
-      void api.removeFamiliar(term).catch(() => {})
+      if (canPersist()) void api.removeFamiliar(term).catch(() => {})
     } else {
       familiar.add(term)
-      void api.addFamiliar(term, definition).catch(() => {})
+      if (canPersist()) void api.addFamiliar(term, definition).catch(() => {})
     }
     set({ familiar })
   },
@@ -213,7 +216,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   markKnown: (nodeId, term, definition) => {
     const familiar = new Set(get().familiar)
     familiar.add(term)
-    void api.addFamiliar(term, definition).catch(() => {})
+    if (canPersist()) void api.addFamiliar(term, definition).catch(() => {})
     set((s) => ({
       familiar,
       nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, removing: true } } : n)),

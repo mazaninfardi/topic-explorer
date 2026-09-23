@@ -18,8 +18,11 @@ class Settings:
     )
     # Session cookie signing secret (override in every real environment).
     session_secret: str = os.getenv("SESSION_SECRET", "dev-insecure-secret-change-me")
-    # Google OAuth Web client id (audience for ID-token verification).
+    # Google OAuth Web client id + secret (authorization-code redirect flow).
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    # Public base URL of the app (for OAuth redirect_uri and post-login redirect).
+    app_base_url: str = os.getenv("APP_BASE_URL", "http://localhost:5173")
     guest_paper_limit: int = int(os.getenv("GUEST_PAPER_LIMIT", "5"))
 
 

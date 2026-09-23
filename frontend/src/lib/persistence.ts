@@ -1,5 +1,6 @@
 import { ROOT_ID, useGraphStore } from '../graph/store'
 import { api, type StoredGraph } from './api'
+import { useAuthStore } from './auth'
 
 function serialize(): StoredGraph {
   const s = useGraphStore.getState()
@@ -16,6 +17,7 @@ function serialize(): StoredGraph {
 let timer: ReturnType<typeof setTimeout> | undefined
 
 function scheduleSave() {
+  if (!useAuthStore.getState().me?.authenticated) return // guests don't persist
   const s = useGraphStore.getState()
   const root = s.nodes.find((n) => n.id === ROOT_ID)
   if (!s.currentTopic || !root || root.data.loading) return
@@ -32,8 +34,9 @@ export function initPersistence(): () => void {
   return useGraphStore.subscribe(scheduleSave)
 }
 
-/** On app start: load familiar terms and restore the most recent topic from the server. */
+/** On app start (signed-in only): load familiar terms and restore the most recent topic. */
 export async function restoreLast(): Promise<void> {
+  if (!useAuthStore.getState().me?.authenticated) return // guests have no server data
   try {
     const fam = await api.listFamiliar()
     useGraphStore.getState().setFamiliar(fam.map((f) => f.term))

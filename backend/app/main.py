@@ -1,18 +1,19 @@
 import asyncio
 import json
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Response
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title
-from .auth import COOKIE, current_user, set_session_cookie, verify_google_token
+from .auth import COOKIE, build_auth_url, current_user, exchange_code, set_session_cookie
 from .config import settings
 from .db import SessionLocal, get_session, init_db
 from .gemini import GeminiExtractor
@@ -52,8 +53,9 @@ def _user_public(user: User) -> dict:
     return {"authenticated": not user.is_guest, "guest": user.is_guest, "email": user.email, "name": user.name}
 
 
-class GoogleAuthRequest(BaseModel):
-    credential: str
+def _require_account(user: User) -> None:
+    if user.is_guest:
+        raise HTTPException(status_code=401, detail="sign-in required")
 
 
 @app.get("/api/auth/me")
@@ -61,12 +63,22 @@ async def auth_me(user: User = Depends(current_user)) -> dict:
     return _user_public(user)
 
 
-@app.post("/api/auth/google")
-async def auth_google(req: GoogleAuthRequest, response: Response) -> dict:
+@app.get("/api/auth/login")
+async def auth_login() -> RedirectResponse:
+    state = secrets.token_urlsafe(16)
+    resp = RedirectResponse(build_auth_url(state))
+    resp.set_cookie("oauth_state", state, httponly=True, samesite="lax", max_age=600, path="/")
+    return resp
+
+
+@app.get("/api/auth/callback")
+async def auth_callback(request: Request, code: str = "", state: str = "") -> RedirectResponse:
+    if not code or not state or state != request.cookies.get("oauth_state"):
+        return RedirectResponse(f"{settings.app_base_url}/?auth=failed")
     try:
-        claims = verify_google_token(req.credential)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=401, detail="Invalid Google token") from exc
+        claims = await exchange_code(code)
+    except Exception:  # noqa: BLE001
+        return RedirectResponse(f"{settings.app_base_url}/?auth=failed")
     async with SessionLocal() as s:
         account = (
             await s.execute(select(User).where(User.google_sub == claims["sub"]))
@@ -81,8 +93,11 @@ async def auth_google(req: GoogleAuthRequest, response: Response) -> dict:
             account.name = claims.get("name")
         await s.commit()
         await s.refresh(account)
-        set_session_cookie(response, account.id)
-        return _user_public(account)
+        uid = account.id
+    resp = RedirectResponse(f"{settings.app_base_url}/")
+    set_session_cookie(resp, uid)
+    resp.delete_cookie("oauth_state", path="/")
+    return resp
 
 
 @app.post("/api/auth/logout")
@@ -128,12 +143,9 @@ async def get_topic(aid: str, user: User = Depends(current_user), session: Async
 async def put_topic(
     aid: str, body: TopicIn, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)
 ) -> dict:
+    _require_account(user)  # guests don't persist topics
     t = await _find_topic(session, user.id, aid)
     if t is None:
-        if user.is_guest:
-            count = await session.scalar(select(func.count()).select_from(Topic).where(Topic.user_id == user.id))
-            if (count or 0) >= settings.guest_paper_limit:
-                raise HTTPException(status_code=403, detail="guest-limit")
         session.add(Topic(user_id=user.id, arxiv_id=aid, title=body.title, graph=body.graph))
     else:
         t.title = body.title
@@ -159,6 +171,7 @@ async def list_familiar(user: User = Depends(current_user), session: AsyncSessio
 
 @app.post("/api/familiar")
 async def add_familiar(body: FamiliarIn, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _require_account(user)  # guests don't persist familiar terms
     existing = await session.get(FamiliarTerm, {"user_id": user.id, "term": body.term})
     if existing is None:
         session.add(FamiliarTerm(user_id=user.id, term=body.term, definition=body.definition))
@@ -168,6 +181,7 @@ async def add_familiar(body: FamiliarIn, user: User = Depends(current_user), ses
 
 @app.delete("/api/familiar/{term}")
 async def remove_familiar(term: str, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    _require_account(user)
     await session.execute(delete(FamiliarTerm).where(FamiliarTerm.user_id == user.id, FamiliarTerm.term == term))
     await session.commit()
     return {"ok": True}
@@ -188,14 +202,14 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
         async with SessionLocal() as s:
             cached = await s.get(PaperAnalysis, paper_id)
             if user.is_guest:
-                already = await s.scalar(
-                    select(func.count()).select_from(Topic).where(Topic.user_id == user.id, Topic.arxiv_id == paper_id)
-                )
-                if not already:
-                    count = await s.scalar(select(func.count()).select_from(Topic).where(Topic.user_id == user.id))
-                    if (count or 0) >= settings.guest_paper_limit:
-                        yield _sse("error", {"message": "guest-limit"})
-                        return
+                guser = await s.get(User, user.id)
+                explored = list(guser.explored or []) if guser else []
+                if paper_id not in explored and len(explored) >= settings.guest_paper_limit:
+                    yield _sse("error", {"message": "guest-limit"})
+                    return
+                if guser is not None and paper_id not in explored:
+                    guser.explored = [*explored, paper_id]  # trial counter (ids only)
+                    await s.commit()
             if cached is not None:
                 yield _sse("what", cached.what)
                 yield _sse("why", cached.why)

@@ -40,8 +40,6 @@ const JSON_HEADERS = { 'content-type': 'application/json' }
 
 export const api = {
   me: () => j<Me>('/api/auth/me'),
-  google: (credential: string) =>
-    j<Me>('/api/auth/google', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ credential }) }),
   logout: () => j<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
 
   listTopics: () => j<TopicRecord[]>('/api/topics'),

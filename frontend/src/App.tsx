@@ -3,11 +3,13 @@ import { ExplorerPage } from './pages/ExplorerPage'
 import { TopicsPage } from './pages/TopicsPage'
 import { FamiliarTermsPage } from './pages/FamiliarTermsPage'
 import { AuthButton } from './components/AuthButton'
+import { useAuthStore } from './lib/auth'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `rounded px-2 py-1 ${isActive ? 'bg-white/15 text-white' : 'text-slate-300 hover:text-white'}`
 
 export default function App() {
+  const signedIn = useAuthStore((s) => s.me && !s.me.guest)
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-4 bg-slate-900 px-4 py-3 text-white">
@@ -20,8 +22,12 @@ export default function App() {
         <div className="flex items-center gap-4">
           <nav className="flex gap-1 text-sm">
             <NavLink to="/" end className={navClass}>Explore</NavLink>
-            <NavLink to="/topics" className={navClass}>Topics</NavLink>
-            <NavLink to="/terms/familiar" className={navClass}>Familiar</NavLink>
+            {signedIn && (
+              <>
+                <NavLink to="/topics" className={navClass}>Topics</NavLink>
+                <NavLink to="/terms/familiar" className={navClass}>Familiar</NavLink>
+              </>
+            )}
           </nav>
           <AuthButton />
         </div>

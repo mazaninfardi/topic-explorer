@@ -24,6 +24,8 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String, nullable=True)
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     is_guest: Mapped[bool] = mapped_column(default=True)
+    # Guest trial gate: arXiv ids a guest has explored (ids only — no topics stored).
+    explored: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list["Topic"]] = relationship(back_populates="user", cascade="all, delete-orphan")

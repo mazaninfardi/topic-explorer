@@ -6,7 +6,6 @@ const GUEST: Me = { authenticated: false, guest: true, email: null, name: null }
 interface AuthState {
   me: Me | null
   load: () => Promise<void>
-  signIn: (credential: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -18,9 +17,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch {
       set({ me: GUEST })
     }
-  },
-  signIn: async (credential) => {
-    set({ me: await api.google(credential) })
   },
   signOut: async () => {
     try {

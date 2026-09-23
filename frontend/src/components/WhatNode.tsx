@@ -2,7 +2,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
 import { useGraphStore, type SpecialKind } from '../graph/store'
 import { TermText } from './TermText'
-import { CollapseToggle } from './CollapseToggle'
+import { NodeControls } from './NodeControls'
 
 /** Root node: the paper (title) with its What summary, Why/How, salient terms. */
 export function WhatNode({ id, data }: NodeProps<TGNode>) {
@@ -29,8 +29,8 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
 
   return (
     <div className="max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-500">Paper</span>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-500">What</span>
         <div className="flex items-center gap-2">
           {data.paperUrl && (
             <a
@@ -42,7 +42,7 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
               full paper ↗
             </a>
           )}
-          <CollapseToggle id={id} />
+          <NodeControls id={id} />
         </div>
       </div>
 
@@ -53,7 +53,7 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
           {data.paperTitle && (
             <h2 className="mb-1.5 text-base font-bold leading-snug text-slate-900">{data.paperTitle}</h2>
           )}
-          <p className="text-[13px] leading-relaxed text-slate-600">
+          <p data-node-id={id} className="nodrag select-text text-[13px] leading-relaxed text-slate-600">
             <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
           </p>
           <div className="mt-3 flex gap-2">

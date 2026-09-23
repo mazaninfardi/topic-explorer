@@ -16,7 +16,7 @@ const emptyGraph: StoredGraph = {
   expansions: [],
   specialsOpened: [],
   pending: {},
-  collapsed: [],
+  hidden: [],
 }
 
 describe('db topics', () => {

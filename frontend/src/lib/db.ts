@@ -7,7 +7,7 @@ export interface StoredGraph {
   expansions: string[]
   specialsOpened: string[]
   pending: Record<string, unknown>
-  collapsed: string[]
+  hidden?: string[]
 }
 
 export interface TopicRecord {

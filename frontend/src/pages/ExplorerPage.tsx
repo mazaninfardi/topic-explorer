@@ -1,5 +1,6 @@
 import { PaperInput } from '../components/PaperInput'
 import { GraphCanvas } from '../components/GraphCanvas'
+import { SelectionDefiner } from '../components/SelectionDefiner'
 
 export function ExplorerPage() {
   return (
@@ -8,6 +9,7 @@ export function ExplorerPage() {
       <main className="min-h-0 flex-1">
         <GraphCanvas />
       </main>
+      <SelectionDefiner />
     </div>
   )
 }

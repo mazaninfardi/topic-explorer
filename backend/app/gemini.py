@@ -124,10 +124,13 @@ class GeminiExtractor:
     async def define(self, term: str) -> dict:
         prompt = (
             f"{_AUDIENCE}\n\nDefine the term \"{term}\" in 1-2 plain sentences for a "
-            f"newcomer.\n- text: the definition.\n- terms: 0-4 salient terms. {_SALIENT_RULE}"
+            f"newcomer.\n- text: the definition.\n- terms: 0-4 salient terms. {_SALIENT_RULE} "
+            f"Do NOT include \"{term}\" itself (or a variant of it) in `terms` — a term "
+            "must never be a salient term inside its own definition."
         )
         data = await self._json([prompt], _DEFINE_SCHEMA)
-        return {
-            "text": data["text"],
-            "terms": _verbatim(data["text"], data.get("terms", [])),
-        }
+        terms = _verbatim(data["text"], data.get("terms", []))
+        # Guard against a cyclic definition: drop terms overlapping the defined term.
+        tl = term.lower()
+        terms = [t for t in terms if tl not in t.lower() and t.lower() not in tl]
+        return {"text": data["text"], "terms": terms}

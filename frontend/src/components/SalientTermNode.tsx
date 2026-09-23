@@ -2,7 +2,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
 import { useGraphStore } from '../graph/store'
 import { TermText } from './TermText'
-import { CollapseToggle } from './CollapseToggle'
+import { NodeControls } from './NodeControls'
 
 function KnownButton({ nodeId, term, definition }: { nodeId: string; term: string; definition: string }) {
   const isFamiliar = useGraphStore((s) => s.familiar.has(term))
@@ -50,18 +50,21 @@ export function SalientTermNode({ id, data }: NodeProps<TGNode>) {
       }`}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-bold text-slate-900" title={data.term}>
-          {data.term ?? 'Term'}
-        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Definition</span>
         <div className="flex shrink-0 items-center gap-1">
           {data.term && !data.loading && <KnownButton nodeId={id} term={data.term} definition={data.text} />}
-          <CollapseToggle id={id} />
+          <NodeControls id={id} />
         </div>
       </div>
+      {data.term && (
+        <h3 className="mb-1 truncate text-sm font-bold text-slate-900" title={data.term}>
+          {data.term}
+        </h3>
+      )}
       {data.loading ? (
         <div className="animate-pulse text-[13px] text-slate-400">Defining…</div>
       ) : (
-        <p className="text-[13px] leading-relaxed text-slate-600">
+        <p data-node-id={id} className="nodrag select-text text-[13px] leading-relaxed text-slate-600">
           <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
         </p>
       )}

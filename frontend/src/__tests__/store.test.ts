@@ -16,7 +16,12 @@ vi.mock('../content', () => ({
   },
 }))
 
-import { ROOT_ID, useGraphStore } from '../graph/store'
+import { ROOT_ID, sanitizeEdges, useGraphStore } from '../graph/store'
+import type { TGEdge, TGNode } from '../graph/types'
+
+const node = (id: string, kind: TGNode['data']['kind']): TGNode =>
+  ({ id, type: kind, position: { x: 0, y: 0 }, data: { kind, text: '', terms: [] } }) as TGNode
+const edge = (source: string, target: string): TGEdge => ({ id: `e-${source}-${target}`, source, target })
 
 const start = (what = { text: 'What text with foo', terms: ['foo'] }) => {
   useGraphStore.getState().explore('1512.03385')
@@ -109,5 +114,37 @@ describe('graph store', () => {
   it('tracks the current topic id from the ref', () => {
     useGraphStore.getState().explore('https://arxiv.org/abs/1512.03385')
     expect(useGraphStore.getState().currentTopic?.id).toBe('1512.03385')
+  })
+})
+
+describe('sanitizeEdges (race/corruption repair)', () => {
+  const nodes = [node(ROOT_ID, 'what'), node('n1', 'how'), node('n2', 'salient-term'), node('n6', 'salient-term')]
+
+  it('repairs the exact corruption seen in the wild', () => {
+    // duplicate root->how, spurious salient->how, self-loop, valid chain
+    const corrupt = [
+      edge(ROOT_ID, 'n1'),
+      edge(ROOT_ID, 'n1'),
+      edge(ROOT_ID, 'n2'),
+      edge('n2', 'n1'),
+      edge('n2', 'n2'),
+      edge('n1', 'n6'),
+    ]
+    const clean = sanitizeEdges(nodes, corrupt).map((e) => e.id)
+    expect(clean).toEqual(['e-root-n1', 'e-root-n2', 'e-n1-n6'])
+  })
+
+  it('drops self-loops and edges to missing nodes', () => {
+    expect(sanitizeEdges(nodes, [edge('n2', 'n2'), edge(ROOT_ID, 'ghost')])).toEqual([])
+  })
+
+  it('keeps only one parent per node', () => {
+    const clean = sanitizeEdges(nodes, [edge(ROOT_ID, 'n2'), edge('n6', 'n2')]).map((e) => e.id)
+    expect(clean).toEqual(['e-root-n2'])
+  })
+
+  it('forces Why/How to be parented only by the root', () => {
+    const clean = sanitizeEdges(nodes, [edge('n2', 'n1')]).map((e) => e.id)
+    expect(clean).toEqual([])
   })
 })

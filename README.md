@@ -22,6 +22,7 @@ history. Deploy details are in [`docs/DEPLOY.md`](./docs/DEPLOY.md).
 
 - **Node** 25 + **pnpm** 10 (`corepack enable` or install pnpm directly)
 - **uv** (Python package manager) — https://astral.sh/uv (after installing, open a **new terminal** so `uv` is on your `PATH`)
+- **Docker** — runs the local Postgres the backend connects to.
 - **gcloud** with Application Default Credentials for Vertex AI:
 
   ```bash
@@ -35,11 +36,17 @@ history. Deploy details are in [`docs/DEPLOY.md`](./docs/DEPLOY.md).
 
 ## Run locally
 
-Two processes. **Backend** (port 8000):
+Three processes. **Postgres** (Docker, port 5433 — matches the dev default in `.env.example`):
+
+```bash
+docker run -d --name te-pg -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=topic_explorer -p 5433:5432 postgres:16
+```
+
+**Backend** (port 8000):
 
 ```bash
 cd backend
-cp .env.example .env   # optional; defaults work
+cp .env.example .env   # defaults target the Docker Postgres above
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
@@ -55,6 +62,10 @@ Open http://localhost:5173, enter a topic (e.g. `diffusion models`) or paste an
 arXiv link (e.g. `https://arxiv.org/abs/1512.03385`), and click **Explore**. A
 first-time extraction can take up to ~90s; the **What** node appears first, then
 **Why**/**How** stream in. Already-analyzed papers load from the cache instantly.
+
+You can explore as a guest without signing in. Google sign-in additionally
+needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (and a matching OAuth redirect
+URI) in `backend/.env`.
 
 ## Tests
 

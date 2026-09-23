@@ -1,0 +1,16 @@
+# What NOT to upload to Cloud Build (build context)
+.git
+**/node_modules
+**/.venv
+**/dist
+**/__pycache__
+**/.pytest_cache
+spikes/
+docs/
+openspec/
+.claude/
+*.log
+**/.env
+**/.env.*
+!**/.env.example
+.DS_Store

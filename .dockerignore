@@ -1,0 +1,16 @@
+# Keep the build context small and clean
+.git
+**/node_modules
+**/.venv
+**/dist
+**/__pycache__
+**/.pytest_cache
+frontend/.oxlintrc.json
+spikes/
+docs/
+openspec/
+*.log
+**/.env
+**/.env.*
+!**/.env.example
+.DS_Store

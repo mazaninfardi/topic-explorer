@@ -37,7 +37,8 @@
 - [x] 6.1 Ran FE (Vite) + BE (uvicorn) locally with a real arXiv link: What appears first, then Why/How special nodes, then term expansion — verified live in-browser, no console/server errors
 - [x] 6.2 `pnpm test` (FE, 9) and backend unit tests (10) pass; `openspec validate mvp-arxiv-extraction --strict` passes
 
-## 7. Deploy to Cloud Run — DEFERRED (next session)
+## 7. Deploy to Cloud Run
 
-- [ ] 7.1 Add a Dockerfile that builds the FE and runs FastAPI serving the static build + API; verify the image runs locally and serves the app end-to-end
-- [ ] 7.2 Deploy to Cloud Run (`topic-explorer-509403`, `us-central1`); grant the runtime service account the Vertex AI User role; verify the live URL runs the full flow
+- [x] 7.1 Multi-stage Dockerfile (Node builds FE → uv/Python runs FastAPI serving `/app/static` + API); verified the image builds and runs locally end-to-end (FE + live Vertex extraction via mounted ADC)
+- [x] 7.2 Deployed to Cloud Run (`topic-explorer-509403`, `us-central1`) with a least-privilege runtime SA `topic-explorer-run` (roles/aiplatform.user), public. Live URL verified end-to-end: https://topic-explorer-732083437898.us-central1.run.app
+  - Custom domain (`topic-explorer.mazanin.com`) pending: requires domain-ownership verification, then a Cloud Run domain mapping (CNAME → ghs.googlehosted.com).

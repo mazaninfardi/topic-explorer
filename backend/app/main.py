@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -83,8 +84,13 @@ async def define(req: DefineRequest) -> dict:
     return await _get_extractor().define(req.term)
 
 
-# In the container, FastAPI also serves the built frontend. In local dev the
-# frontend runs on Vite and proxies /api here, so this mount is simply absent.
-_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+# In the container, FastAPI also serves the built frontend (STATIC_DIR points
+# at it). In local dev the frontend runs on Vite and proxies /api here, so this
+# mount is simply absent.
+_DIST = (
+    Path(os.environ["STATIC_DIR"])
+    if os.getenv("STATIC_DIR")
+    else Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+)
 if _DIST.is_dir():
     app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="static")

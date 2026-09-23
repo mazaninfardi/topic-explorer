@@ -156,8 +156,18 @@ Turn one-shot exploration into a durable learning tool.
 
 **Acceptance:** a user can go deeper on a term, pull in a video and other sources, search their own history, generate a study deck, and self-test on known terms.
 
-### Beyond M5 (future)
-Scalability and caching as usage grows (model-response caching, shared topic graphs, multi-model support via the model adapter), plus a considered visual identity (UX review §4.5). Out of scope for now.
+### M6 — optimizations & scaling
+Harden performance and cost as usage grows.
+- **Frontend code splitting / lazy-loading** — the initial JS bundle is ~515 KB (React Flow + dagre). Split the graph libraries (and route-level pages) into lazy chunks so first paint isn't blocked by the whole app.
+- **Model-response caching** — reuse extractions and definitions aggressively to cut latency and model spend.
+- **Shared topic graphs** — let an already-analyzed paper's graph be reused across users.
+- **Multi-model support** — slot Claude/OpenAI in behind the existing provider adapter.
+- General scaling: connection pooling/limits, CDN for static assets, and load headroom.
+
+**Acceptance:** faster first load (measurably smaller initial bundle), lower model cost per exploration, and headroom for concurrent users.
+
+### Beyond M6 (future)
+A considered visual identity (UX review §4.5) and anything else not yet scoped. Out of scope for now.
 
 ---
 

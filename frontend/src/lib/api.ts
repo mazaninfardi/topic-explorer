@@ -23,6 +23,9 @@ export interface Me {
   guest: boolean
   email: string | null
   name: string | null
+  /** Guests only: how many papers remain before sign-in is required, and the cap. */
+  papers_left?: number
+  guest_limit?: number
 }
 
 /** Raised when the server rejects a guest for exceeding the paper limit. */

@@ -131,15 +131,22 @@ Everything in Pre-MVP, plus:
 
 **Acceptance:** signed-in data survives across devices; app is live on Cloud Run behind Google OAuth.
 
-### M3 — retention & richer input
+### M3 — retention, richer input, accessibility & trust
 - Let users **explain a familiar term** and get a **remembered-how-well score** shown back to them.
 - **Omnisearch** to jump quickly to topics and terms.
 - Support **PDF uploads and non-arXiv papers**.
+- **Accessibility:** keyboard operation of the core expand path, visible focus states, and a WCAG-AA contrast audit (deferred here from the UX review; see `UX-concerns.md` §6).
+- **Trust:** an honest "AI-generated, may be imperfect" disclosure and an easy "verify in the paper" path (UX review §8). Prototype ships without it.
 
-**Acceptance:** users can self-test recall, search everything, and bring papers from anywhere.
+**Acceptance:** users can self-test recall, search everything, bring papers from anywhere, operate the core flow by keyboard, and see a clear trust signal.
 
-### Beyond M3 (future)
-Scalability and caching as usage grows (model-response caching, shared topic graphs, multi-model support via the model adapter). Out of scope for now.
+### M4 — mobile & responsive
+- A responsive header and layout, touch-tuned controls, and a usable graph mode on phones (UX review §7). Desktop-only until then.
+
+**Acceptance:** the core explore → expand loop works on a phone.
+
+### Beyond M4 (future)
+Scalability and caching as usage grows (model-response caching, shared topic graphs, multi-model support via the model adapter), plus a considered visual identity (UX review §4.5). Out of scope for now.
 
 ---
 

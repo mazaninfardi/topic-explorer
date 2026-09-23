@@ -24,19 +24,19 @@ export function FamiliarTermsPage() {
   }, [])
 
   const forget = (term: string) => {
-    toggleFamiliar(term) // removes from store + IndexedDB
+    toggleFamiliar(term) // removes from store + server
     setRecords((rs) => (rs ? rs.filter((r) => r.term !== term) : rs))
   }
 
   return (
     <div className="mx-auto w-full max-w-2xl p-6">
-      <h2 className="mb-1 text-lg font-semibold text-slate-800">Familiar terms</h2>
+      <h2 className="mb-1 text-lg font-semibold text-slate-800">Known terms</h2>
       <p className="mb-4 text-sm text-slate-500">Terms you marked as known, with their definitions.</p>
       {records === null ? (
         <p className="text-sm text-slate-500">Loading…</p>
       ) : records.length === 0 ? (
         <p className="text-sm text-slate-500">
-          None yet — click “I know this” on a term box to collect it here.
+          None yet — click “Got it” on a definition to collect it here.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -49,7 +49,7 @@ export function FamiliarTermsPage() {
                   onClick={() => forget(r.term)}
                   className="shrink-0 rounded px-2 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 >
-                  forget
+                  Forget
                 </button>
               </div>
               {r.definition && <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{r.definition}</p>}

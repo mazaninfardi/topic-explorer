@@ -25,11 +25,11 @@ export function AuthButton() {
     )
   }
 
-  // Guest: a plain link that redirects to Google and returns signed in.
+  // Guest: a clear button that redirects to Google and returns signed in.
   return (
     <a
       href="/api/auth/login"
-      className="rounded px-3 py-1 text-sm font-medium text-slate-200 hover:bg-white/10 hover:text-white"
+      className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 hover:bg-slate-100"
     >
       Log in
     </a>

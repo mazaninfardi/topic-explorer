@@ -1,14 +1,22 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { TGNode } from '../graph/types'
 import { useGraphStore, type SpecialKind } from '../graph/store'
+import { useJustAdded } from '../graph/useJustAdded'
 import { TermText } from './TermText'
 import { NodeControls } from './NodeControls'
+import { WhatSkeleton } from './WhatSkeleton'
+
+const SPECIAL_BTN: Record<SpecialKind, string> = {
+  why: 'border-amber-300 text-amber-700 hover:bg-amber-50',
+  how: 'border-violet-300 text-violet-700 hover:bg-violet-50',
+}
 
 /** Root node: the paper (title) with its What summary, Why/How, salient terms. */
 export function WhatNode({ id, data }: NodeProps<TGNode>) {
   const expandTerm = useGraphStore((s) => s.expandTerm)
   const openSpecial = useGraphStore((s) => s.openSpecial)
   const pending = useGraphStore((s) => s.pending)
+  const flash = useJustAdded(id)
 
   const action = (kind: SpecialKind, label: string) => {
     const ready = Boolean(pending[kind])
@@ -17,7 +25,7 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
         type="button"
         disabled={!ready}
         onClick={() => openSpecial(kind)}
-        className="nodrag nopan rounded-md border border-sky-300 px-3 py-1 text-sm font-medium text-sky-700 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+        className={`nodrag nopan rounded-md border px-3 py-1 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${SPECIAL_BTN[kind]}`}
       >
         {label}
         {!ready ? ' …' : ''}
@@ -26,9 +34,11 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
   }
 
   return (
-    <div className="max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md">
+    <div
+      className={`max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md ${flash ? 'tg-flash' : ''}`}
+    >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-500">What</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">What</span>
         <div className="flex items-center gap-2">
           {data.paperUrl && (
             <a
@@ -45,13 +55,16 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
       </div>
 
       {data.loading ? (
-        <div className="animate-pulse text-sm text-slate-400">Reading the paper…</div>
+        <WhatSkeleton />
       ) : (
         <>
           {data.paperTitle && (
             <h2 className="mb-1.5 text-base font-bold leading-snug text-slate-900">{data.paperTitle}</h2>
           )}
-          <p data-node-id={id} className="nodrag select-text text-[13px] leading-relaxed text-slate-600">
+          <p
+            data-node-id={id}
+            className="nowheel nodrag max-h-72 select-text overflow-y-auto text-[13px] leading-relaxed text-slate-600"
+          >
             <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
           </p>
           <div className="mt-3 flex gap-2">

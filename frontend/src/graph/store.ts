@@ -16,6 +16,10 @@ export type ExtractStatus = 'idle' | 'extracting' | 'ready' | 'error'
 let idCounter = 0
 const nextId = () => `n${(idCounter += 1)}`
 
+let topicNonce = 0
+/** A fresh key each time a whole new graph is shown, so the canvas fits once. */
+const newTopicKey = () => `t${(topicNonce += 1)}`
+
 const ORIGIN = { x: 0, y: 0 }
 
 /** Canonical key for a term: lowercased + naive singularization (plural≈singular). */
@@ -90,8 +94,15 @@ interface GraphState {
   error: string | null
   needsSignIn: boolean
   unsubscribe: (() => void) | null
+  /** Changes when a whole new graph is shown (explore/load/example) — the cue to fit-to-view once. */
+  topicKey: string
+  /** Id of the most recently created or revealed node — the cue to pan it into view. */
+  lastAddedId: string | null
+  /** True while the pre-built onboarding example graph is showing (not a real exploration). */
+  isExample: boolean
 
   explore: (ref: string) => void
+  loadExample: (rec: TopicRecord) => void
   openSpecial: (kind: SpecialKind) => void
   expandTerm: (parentId: string, term: string) => void
   hideNode: (id: string) => void
@@ -119,12 +130,15 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   error: null,
   needsSignIn: false,
   unsubscribe: null,
+  topicKey: 'empty',
+  lastAddedId: null,
+  isExample: false,
 
   explore: (ref) => {
     get().reset()
     const id = arxivIdOf(ref) ?? ref.trim()
     const unsubscribe = contentSource.explore(ref, {
-      onWhat: (c) =>
+      onWhat: (c) => {
         set((s) => ({
           ...reflow(
             s.nodes.map((n) =>
@@ -137,7 +151,10 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
           ),
           status: 'ready',
           currentTopic: { id, title: c.title || c.text.slice(0, 60) },
-        })),
+        }))
+        // A guest's remaining-paper count just changed server-side — refresh it.
+        void useAuthStore.getState().load()
+      },
       onWhy: (c) => set((s) => ({ pending: { ...s.pending, why: c } })),
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
       onError: (message) =>
@@ -150,6 +167,26 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       currentTopic: { id, title: ref },
       status: 'extracting',
       unsubscribe,
+      topicKey: newTopicKey(),
+      lastAddedId: null,
+      isExample: false,
+    })
+  },
+
+  loadExample: (rec) => {
+    get().reset()
+    const g = rec.graph
+    const hidden = new Set(g.hidden ?? [])
+    set({
+      ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], hidden),
+      specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
+      hidden,
+      pending: g.pending as GraphState['pending'],
+      currentTopic: { id: rec.arxiv_id, title: rec.title },
+      status: 'ready',
+      topicKey: newTopicKey(),
+      lastAddedId: null,
+      isExample: true,
     })
   },
 
@@ -164,7 +201,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       if (!s.hidden.has(existing.id)) return
       const hidden = new Set(s.hidden)
       hidden.delete(existing.id)
-      set({ ...reflow(s.nodes, s.edges, hidden), hidden })
+      set({ ...reflow(s.nodes, s.edges, hidden), hidden, lastAddedId: existing.id })
       return
     }
 
@@ -173,7 +210,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const edges = [...s.edges, { id: `e-${ROOT_ID}-${id}`, source: ROOT_ID, target: id }]
     const opened = new Set(s.specialsOpened)
     opened.add(kind)
-    set({ ...reflow([...s.nodes, node], edges, s.hidden), specialsOpened: opened })
+    set({ ...reflow([...s.nodes, node], edges, s.hidden), specialsOpened: opened, lastAddedId: id })
   },
 
   expandTerm: (parentId, term) => {
@@ -197,12 +234,12 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       hidden.delete(existing.id)
       if (descendantsOf(existing.id, s.edges).has(parentId)) {
         // Would create a cycle — just reveal it in place.
-        set({ ...reflow(nodes, s.edges, hidden), hidden })
+        set({ ...reflow(nodes, s.edges, hidden), hidden, lastAddedId: existing.id })
         return
       }
       const edges = s.edges.filter((e) => e.target !== existing.id)
       edges.push({ id: `e-${parentId}-${existing.id}`, source: parentId, target: existing.id })
-      set({ ...reflow(nodes, edges, hidden), hidden })
+      set({ ...reflow(nodes, edges, hidden), hidden, lastAddedId: existing.id })
       return
     }
     if (existing) return
@@ -210,7 +247,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const id = nextId()
     const node: TGNode = { id, type: 'salient-term', position: ORIGIN, data: { kind: 'salient-term', text: '', terms: [], term, loading: true } }
     const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
-    set({ ...reflow([...withTermChip(s.nodes), node], edges, s.hidden) })
+    set({ ...reflow([...withTermChip(s.nodes), node], edges, s.hidden), lastAddedId: id })
 
     const fill = (text: string, terms: string[]) =>
       set((st) => ({
@@ -289,6 +326,9 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       pending: g.pending as GraphState['pending'],
       currentTopic: { id: rec.arxiv_id, title: rec.title },
       status: 'ready',
+      topicKey: newTopicKey(),
+      lastAddedId: null,
+      isExample: false,
     })
   },
 
@@ -309,7 +349,9 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       error: null,
       needsSignIn: false,
       unsubscribe: null,
-      // `familiar` intentionally preserved across explorations.
+      lastAddedId: null,
+      isExample: false,
+      // `familiar` and `topicKey` intentionally preserved across explorations.
     })
   },
 }))

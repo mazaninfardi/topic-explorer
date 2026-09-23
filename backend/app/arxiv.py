@@ -49,3 +49,25 @@ async def fetch_pdf(ref: str) -> bytes:
             return resp.content
     except httpx.HTTPError as exc:
         raise IngestionError("Could not retrieve that arXiv paper.") from exc
+
+
+_ENTRY_TITLE = re.compile(r"<entry>.*?<title>(.*?)</title>", re.DOTALL)
+
+
+async def fetch_title(ref: str) -> str | None:
+    """Best-effort fetch of the paper's title from the arXiv API (None on failure)."""
+    try:
+        aid = arxiv_id(ref)
+    except IngestionError:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"https://export.arxiv.org/api/query?id_list={aid}",
+                headers={"User-Agent": "topic-explorer/0.1 (arxiv fetch)"},
+            )
+            resp.raise_for_status()
+            m = _ENTRY_TITLE.search(resp.text)
+            return " ".join(m.group(1).split()) if m else None
+    except httpx.HTTPError:
+        return None

@@ -19,6 +19,7 @@ export interface TopicRecord {
 
 export interface FamiliarRecord {
   term: string
+  definition: string
   addedAt: number
 }
 
@@ -67,8 +68,11 @@ export const listTopics = () =>
 export const mostRecentTopic = () =>
   guard(async () => (await listTopics())[0], undefined)
 
-export const addFamiliar = (term: string) =>
-  guard(async () => void (await db()).put('familiarTerms', { term, addedAt: Date.now() }), undefined)
+export const addFamiliar = (term: string, definition = '') =>
+  guard(
+    async () => void (await db()).put('familiarTerms', { term, definition, addedAt: Date.now() }),
+    undefined,
+  )
 
 export const removeFamiliar = (term: string) =>
   guard(async () => void (await db()).delete('familiarTerms', term), undefined)

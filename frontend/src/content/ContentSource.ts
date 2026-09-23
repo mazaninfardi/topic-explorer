@@ -4,9 +4,15 @@ export interface NodeContent {
   terms: string[]
 }
 
+/** The What payload also carries the paper title and a link to the paper. */
+export interface WhatContent extends NodeContent {
+  title?: string | null
+  url?: string
+}
+
 /** Streaming callbacks for an exploration (What arrives first, then Why/How). */
 export interface ExploreHandlers {
-  onWhat: (content: NodeContent) => void
+  onWhat: (content: WhatContent) => void
   onWhy: (content: NodeContent) => void
   onHow: (content: NodeContent) => void
   onError: (message: string) => void

@@ -17,15 +17,13 @@ export function SpecialNode({ id, data }: NodeProps<TGNode>) {
 
   return (
     <div className={`max-w-sm rounded-xl border ${style.border} bg-white p-4 shadow-sm`}>
-      <div className="mb-1 flex items-center justify-between">
-        <span className={`text-xs font-semibold uppercase tracking-wide ${style.label}`}>
-          {kind === 'why' ? 'Why' : 'How'}
-        </span>
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className={`text-base font-bold ${style.label}`}>{kind === 'why' ? 'Why' : 'How'}</span>
         <CollapseToggle id={id} />
       </div>
-      <div className="text-sm leading-relaxed text-slate-700">
+      <p className="text-[13px] leading-relaxed text-slate-600">
         <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
-      </div>
+      </p>
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>

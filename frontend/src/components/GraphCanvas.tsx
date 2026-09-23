@@ -1,9 +1,20 @@
-import { useMemo } from 'react'
-import { Background, Controls, ReactFlow, type NodeTypes } from '@xyflow/react'
+import { useEffect, useMemo } from 'react'
+import { Background, Controls, ReactFlow, useNodesInitialized, type NodeTypes } from '@xyflow/react'
 import { useGraphStore } from '../graph/store'
 import { WhatNode } from './WhatNode'
 import { SpecialNode } from './SpecialNode'
 import { SalientTermNode } from './SalientTermNode'
+
+/** Re-flow once nodes have been measured, so layout uses real sizes (no overlap). */
+function LayoutOnMeasure() {
+  const initialized = useNodesInitialized()
+  const count = useGraphStore((s) => s.nodes.length)
+  const relayout = useGraphStore((s) => s.relayout)
+  useEffect(() => {
+    if (initialized) relayout()
+  }, [initialized, count, relayout])
+  return null
+}
 
 export function GraphCanvas() {
   const nodes = useGraphStore((s) => s.nodes)
@@ -30,6 +41,7 @@ export function GraphCanvas() {
       fitViewOptions={{ maxZoom: 1 }}
       proOptions={{ hideAttribution: true }}
     >
+      <LayoutOnMeasure />
       <Background />
       <Controls />
     </ReactFlow>

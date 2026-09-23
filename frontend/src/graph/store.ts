@@ -58,9 +58,13 @@ interface GraphState {
   openSpecial: (kind: SpecialKind) => void
   expandTerm: (parentId: string, term: string) => void
   toggleCollapse: (id: string) => void
-  toggleFamiliar: (term: string) => void
+  toggleFamiliar: (term: string, definition?: string) => void
+  /** Mark a term known (store term + definition) and fade/remove its box. */
+  markKnown: (nodeId: string, term: string, definition: string) => void
   setFamiliar: (terms: string[]) => void
   loadTopic: (rec: TopicRecord) => void
+  /** Re-run the tidy layout (used after nodes are measured, or via "Tidy"). */
+  relayout: () => void
   onNodesChange: (changes: NodeChange<TGNode>[]) => void
   reset: () => void
 }
@@ -86,13 +90,25 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         set((s) => ({
           ...reflow(
             s.nodes.map((n) =>
-              n.id === ROOT_ID ? { ...n, data: { ...n.data, text: c.text, terms: c.terms, loading: false } } : n,
+              n.id === ROOT_ID
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      text: c.text,
+                      terms: c.terms,
+                      loading: false,
+                      paperTitle: c.title ?? undefined,
+                      paperUrl: c.url,
+                    },
+                  }
+                : n,
             ),
             s.edges,
             s.collapsed,
           ),
           status: 'ready',
-          currentTopic: { id, title: c.text.slice(0, 60) },
+          currentTopic: { id, title: c.title || c.text.slice(0, 60) },
         })),
       onWhy: (c) => set((s) => ({ pending: { ...s.pending, why: c } })),
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
@@ -161,19 +177,45 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     set({ ...reflow(s.nodes, s.edges, collapsed), collapsed })
   },
 
-  toggleFamiliar: (term) => {
+  toggleFamiliar: (term, definition = '') => {
     const familiar = new Set(get().familiar)
     if (familiar.has(term)) {
       familiar.delete(term)
       void removeFamiliar(term)
     } else {
       familiar.add(term)
-      void addFamiliar(term)
+      void addFamiliar(term, definition)
     }
     set({ familiar })
   },
 
+  markKnown: (nodeId, term, definition) => {
+    const familiar = new Set(get().familiar)
+    familiar.add(term)
+    void addFamiliar(term, definition)
+    // Fade the box, then remove it (and any descendants) and re-flow.
+    set((s) => ({
+      familiar,
+      nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, removing: true } } : n)),
+    }))
+    setTimeout(() => {
+      const s = get()
+      const remove = new Set<string>([nodeId])
+      const childrenOf = new Map<string, string[]>()
+      for (const e of s.edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
+      const visit = (id: string) => {
+        for (const child of childrenOf.get(id) ?? []) if (!remove.has(child)) { remove.add(child); visit(child) }
+      }
+      visit(nodeId)
+      const nodes = s.nodes.filter((n) => !remove.has(n.id))
+      const edges = s.edges.filter((e) => !remove.has(e.source) && !remove.has(e.target))
+      set({ ...reflow(nodes, edges, s.collapsed) })
+    }, 260)
+  },
+
   setFamiliar: (terms) => set({ familiar: new Set(terms) }),
+
+  relayout: () => set((s) => ({ ...reflow(s.nodes, s.edges, s.collapsed) })),
 
   loadTopic: (rec) => {
     get().reset()

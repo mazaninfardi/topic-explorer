@@ -16,6 +16,12 @@ class Settings:
     database_url: str = os.getenv(
         "DATABASE_URL", "postgresql+asyncpg://postgres:dev@localhost:5433/topic_explorer"
     )
+    # Cloud SQL (prod): when set, connect via the Cloud SQL Python Connector
+    # (Admin API) instead of DATABASE_URL. Format: project:region:instance.
+    instance_connection_name: str = os.getenv("INSTANCE_CONNECTION_NAME", "")
+    db_user: str = os.getenv("DB_USER", "postgres")
+    db_pass: str = os.getenv("DB_PASS", "")
+    db_name: str = os.getenv("DB_NAME", "topic_explorer")
     # Session cookie signing secret (override in every real environment).
     session_secret: str = os.getenv("SESSION_SECRET", "dev-insecure-secret-change-me")
     # Google OAuth Web client id + secret (authorization-code redirect flow).

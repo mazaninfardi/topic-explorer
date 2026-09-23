@@ -5,7 +5,29 @@ from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
 
-engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+
+def _create_engine():
+    # Prod: Cloud SQL via the Python Connector (Admin API — no socket path).
+    if settings.instance_connection_name:
+        from google.cloud.sql.connector import Connector
+
+        connector = Connector()
+
+        async def getconn():
+            return await connector.connect_async(
+                settings.instance_connection_name,
+                "asyncpg",
+                user=settings.db_user,
+                password=settings.db_pass,
+                db=settings.db_name,
+            )
+
+        return create_async_engine("postgresql+asyncpg://", async_creator=getconn, pool_pre_ping=True)
+    # Local dev: plain DATABASE_URL (Docker Postgres).
+    return create_async_engine(settings.database_url, pool_pre_ping=True)
+
+
+engine = _create_engine()
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

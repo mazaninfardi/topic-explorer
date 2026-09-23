@@ -13,6 +13,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "pyjwt>=2.14.0",
     "google-auth>=2.0",
+    "cloud-sql-python-connector[asyncpg]>=1.22.0",
 ]
 
 [dependency-groups]

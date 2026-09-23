@@ -58,7 +58,7 @@ export function SalientTermNode({ id, data }: NodeProps<TGNode>) {
       </div>
       {data.term && (
         <h3 className="mb-1 truncate text-sm font-bold text-slate-900" title={data.term}>
-          {data.term}
+          {data.term.replace(/\b\w/g, (c) => c.toUpperCase())}
         </h3>
       )}
       {data.loading ? (

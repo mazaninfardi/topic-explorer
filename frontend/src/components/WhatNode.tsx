@@ -9,15 +9,13 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
   const expandTerm = useGraphStore((s) => s.expandTerm)
   const openSpecial = useGraphStore((s) => s.openSpecial)
   const pending = useGraphStore((s) => s.pending)
-  const opened = useGraphStore((s) => s.specialsOpened)
 
   const action = (kind: SpecialKind, label: string) => {
     const ready = Boolean(pending[kind])
-    const isOpen = opened.has(kind)
     return (
       <button
         type="button"
-        disabled={!ready || isOpen}
+        disabled={!ready}
         onClick={() => openSpecial(kind)}
         className="nodrag nopan rounded-md border border-sky-300 px-3 py-1 text-sm font-medium text-sky-700 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
       >

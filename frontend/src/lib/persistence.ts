@@ -7,7 +7,6 @@ function serialize(): StoredGraph {
   return {
     nodes: s.nodes,
     edges: s.edges,
-    expansions: [...s.expansions],
     specialsOpened: [...s.specialsOpened],
     pending: s.pending,
     hidden: [...s.hidden],

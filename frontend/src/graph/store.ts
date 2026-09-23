@@ -15,16 +15,21 @@ export type ExtractStatus = 'idle' | 'extracting' | 'ready' | 'error'
 
 let idCounter = 0
 const nextId = () => `n${(idCounter += 1)}`
-const expansionKey = (parentId: string, term: string) =>
-  `${parentId}::${term.toLowerCase()}`
 
 const ORIGIN = { x: 0, y: 0 }
+
+/** Canonical key for a term: lowercased + naive singularization (plural≈singular). */
+export function termKey(term: string): string {
+  const k = term.trim().toLowerCase()
+  return k.length > 3 && k.endsWith('s') && !k.endsWith('ss') ? k.slice(0, -1) : k
+}
+
+const familiarKey = (term: string) => term.trim().toLowerCase()
 
 /** Hide each node in `hiddenSet` together with its whole subtree, then re-flow. */
 export function reflow(nodes: TGNode[], edges: TGEdge[], hiddenSet: Set<string>) {
   const childrenOf = new Map<string, string[]>()
   for (const e of edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
-
   const hidden = new Set<string>()
   const visit = (id: string) => {
     for (const child of childrenOf.get(id) ?? []) if (!hidden.has(child)) { hidden.add(child); visit(child) }
@@ -33,16 +38,26 @@ export function reflow(nodes: TGNode[], edges: TGEdge[], hiddenSet: Set<string>)
     hidden.add(h)
     visit(h)
   }
-
   const nextNodes = nodes.map((n) => ({ ...n, hidden: hidden.has(n.id) }))
   const nextEdges = edges.map((e) => ({ ...e, hidden: hidden.has(e.source) || hidden.has(e.target) }))
   return { nodes: layoutGraph(nextNodes, nextEdges), edges: nextEdges }
 }
 
+/** Node ids reachable from `id` (its subtree). */
+function descendantsOf(id: string, edges: TGEdge[]): Set<string> {
+  const childrenOf = new Map<string, string[]>()
+  for (const e of edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
+  const out = new Set<string>()
+  const visit = (n: string) => {
+    for (const c of childrenOf.get(n) ?? []) if (!out.has(c)) { out.add(c); visit(c) }
+  }
+  visit(id)
+  return out
+}
+
 interface GraphState {
   nodes: TGNode[]
   edges: TGEdge[]
-  expansions: Set<string>
   specialsOpened: Set<SpecialKind>
   hidden: Set<string>
   familiar: Set<string>
@@ -56,9 +71,7 @@ interface GraphState {
   explore: (ref: string) => void
   openSpecial: (kind: SpecialKind) => void
   expandTerm: (parentId: string, term: string) => void
-  /** Hide a single node (and its subtree). */
   hideNode: (id: string) => void
-  /** Restore the directly-hidden children of a node. */
   restoreChildren: (parentId: string) => void
   toggleFamiliar: (term: string, definition?: string) => void
   markKnown: (nodeId: string, term: string, definition: string) => void
@@ -69,10 +82,11 @@ interface GraphState {
   reset: () => void
 }
 
+const DEFINE_TIMEOUT_MS = 30000
+
 export const useGraphStore = create<GraphState>()((set, get) => ({
   nodes: [],
   edges: [],
-  expansions: new Set<string>(),
   specialsOpened: new Set<SpecialKind>(),
   hidden: new Set<string>(),
   familiar: new Set<string>(),
@@ -92,17 +106,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
           ...reflow(
             s.nodes.map((n) =>
               n.id === ROOT_ID
-                ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      text: c.text,
-                      terms: c.terms,
-                      loading: false,
-                      paperTitle: c.title ?? undefined,
-                      paperUrl: c.url,
-                    },
-                  }
+                ? { ...n, data: { ...n.data, text: c.text, terms: c.terms, loading: false, paperTitle: c.title ?? undefined, paperUrl: c.url } }
                 : n,
             ),
             s.edges,
@@ -115,13 +119,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       onHow: (c) => set((s) => ({ pending: { ...s.pending, how: c } })),
       onError: (message) =>
         message === 'guest-limit'
-          ? set({
-              status: 'error',
-              error: 'You’ve reached the 5-paper limit for guests. Sign in to keep exploring.',
-              needsSignIn: true,
-              nodes: [],
-              edges: [],
-            })
+          ? set({ status: 'error', error: 'You’ve reached the 5-paper limit for guests. Sign in to keep exploring.', needsSignIn: true, nodes: [], edges: [] })
           : set({ status: 'error', error: message, nodes: [], edges: [] }),
     })
     set({
@@ -134,9 +132,18 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   openSpecial: (kind) => {
     const s = get()
-    if (s.specialsOpened.has(kind)) return
     const content = s.pending[kind]
     if (!content || !s.nodes.some((n) => n.id === ROOT_ID)) return
+
+    // Reopen an existing (possibly hidden) special node instead of refetching.
+    const existing = s.nodes.find((n) => n.data.kind === kind)
+    if (existing) {
+      if (!s.hidden.has(existing.id)) return
+      const hidden = new Set(s.hidden)
+      hidden.delete(existing.id)
+      set({ ...reflow(s.nodes, s.edges, hidden), hidden })
+      return
+    }
 
     const id = nextId()
     const node: TGNode = { id, type: kind, position: ORIGIN, data: { kind, text: content.text, terms: content.terms } }
@@ -148,28 +155,39 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   expandTerm: (parentId, term) => {
     const s = get()
-    const key = expansionKey(parentId, term)
-    if (s.expansions.has(key)) return
     if (!s.nodes.some((n) => n.id === parentId)) return
+    const key = termKey(term)
+
+    const withTermChip = (nodes: TGNode[]) =>
+      nodes.map((n) =>
+        n.id === parentId && !n.data.terms.some((t) => t.toLowerCase() === term.toLowerCase())
+          ? { ...n, data: { ...n.data, terms: [...n.data.terms, term] } }
+          : n,
+      )
+
+    // A term has ONE definition node. If it exists, reveal it and link it
+    // directly to the current parent (one hop), unless that would cycle.
+    const existing = s.nodes.find((n) => n.data.kind === 'salient-term' && n.data.term && termKey(n.data.term) === key)
+    if (existing && existing.id !== parentId) {
+      const nodes = withTermChip(s.nodes)
+      const hidden = new Set(s.hidden)
+      hidden.delete(existing.id)
+      if (descendantsOf(existing.id, s.edges).has(parentId)) {
+        // Would create a cycle — just reveal it in place.
+        set({ ...reflow(nodes, s.edges, hidden), hidden })
+        return
+      }
+      const edges = s.edges.filter((e) => e.target !== existing.id)
+      edges.push({ id: `e-${parentId}-${existing.id}`, source: parentId, target: existing.id })
+      set({ ...reflow(nodes, edges, hidden), hidden })
+      return
+    }
+    if (existing) return
 
     const id = nextId()
-    const node: TGNode = {
-      id,
-      type: 'salient-term',
-      position: ORIGIN,
-      data: { kind: 'salient-term', text: '', terms: [], term, loading: true },
-    }
-    // Ensure the term is a salient term on its parent (so a user-selected
-    // phrase becomes an underlined chip, familiar-marking, etc.).
-    const parents = s.nodes.map((n) =>
-      n.id === parentId && !n.data.terms.some((t) => t.toLowerCase() === term.toLowerCase())
-        ? { ...n, data: { ...n.data, terms: [...n.data.terms, term] } }
-        : n,
-    )
+    const node: TGNode = { id, type: 'salient-term', position: ORIGIN, data: { kind: 'salient-term', text: '', terms: [], term, loading: true } }
     const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
-    const expansions = new Set(s.expansions)
-    expansions.add(key)
-    set({ ...reflow([...parents, node], edges, s.hidden), expansions })
+    set({ ...reflow([...withTermChip(s.nodes), node], edges, s.hidden) })
 
     const fill = (text: string, terms: string[]) =>
       set((st) => ({
@@ -180,10 +198,16 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
         ),
       }))
 
-    contentSource
-      .defineTerm(term)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    Promise.race([
+      contentSource.defineTerm(term),
+      new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(new Error('timeout')), DEFINE_TIMEOUT_MS)
+      }),
+    ])
       .then((c) => fill(c.text, c.terms))
-      .catch(() => fill('Definition unavailable.', []))
+      .catch(() => fill('Definition unavailable — click the term again to retry.', []))
+      .finally(() => clearTimeout(timer))
   },
 
   hideNode: (id) => {
@@ -202,12 +226,13 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   },
 
   toggleFamiliar: (term, definition = '') => {
+    const k = familiarKey(term)
     const familiar = new Set(get().familiar)
-    if (familiar.has(term)) {
-      familiar.delete(term)
+    if (familiar.has(k)) {
+      familiar.delete(k)
       if (canPersist()) void api.removeFamiliar(term).catch(() => {})
     } else {
-      familiar.add(term)
+      familiar.add(k)
       if (canPersist()) void api.addFamiliar(term, definition).catch(() => {})
     }
     set({ familiar })
@@ -215,36 +240,20 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
 
   markKnown: (nodeId, term, definition) => {
     const familiar = new Set(get().familiar)
-    familiar.add(term)
+    familiar.add(familiarKey(term))
     if (canPersist()) void api.addFamiliar(term, definition).catch(() => {})
-    set((s) => ({
-      familiar,
-      nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, removing: true } } : n)),
-    }))
+    set((s) => ({ familiar, nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, removing: true } } : n)) }))
     setTimeout(() => {
       const s = get()
-      const remove = new Set<string>([nodeId])
-      const childrenOf = new Map<string, string[]>()
-      for (const e of s.edges) childrenOf.set(e.source, [...(childrenOf.get(e.source) ?? []), e.target])
-      const visit = (id: string) => {
-        for (const child of childrenOf.get(id) ?? []) if (!remove.has(child)) { remove.add(child); visit(child) }
-      }
-      visit(nodeId)
-      // Drop the expansion keys of removed term nodes so they can be re-opened.
-      const removedKeys = new Set<string>()
-      for (const n of s.nodes) {
-        if (!remove.has(n.id) || !n.data.term) continue
-        const parentEdge = s.edges.find((e) => e.target === n.id)
-        if (parentEdge) removedKeys.add(`${parentEdge.source}::${n.data.term.toLowerCase()}`)
-      }
+      const remove = descendantsOf(nodeId, s.edges)
+      remove.add(nodeId)
       const nodes = s.nodes.filter((n) => !remove.has(n.id))
       const edges = s.edges.filter((e) => !remove.has(e.source) && !remove.has(e.target))
-      const expansions = new Set([...s.expansions].filter((k) => !removedKeys.has(k)))
-      set({ ...reflow(nodes, edges, s.hidden), expansions })
+      set({ ...reflow(nodes, edges, s.hidden) })
     }, 260)
   },
 
-  setFamiliar: (terms) => set({ familiar: new Set(terms) }),
+  setFamiliar: (terms) => set({ familiar: new Set(terms.map(familiarKey)) }),
 
   loadTopic: (rec) => {
     get().reset()
@@ -252,7 +261,6 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const hidden = new Set(g.hidden ?? [])
     set({
       ...reflow(g.nodes as TGNode[], g.edges as TGEdge[], hidden),
-      expansions: new Set(g.expansions),
       specialsOpened: new Set(g.specialsOpened as SpecialKind[]),
       hidden,
       pending: g.pending as GraphState['pending'],
@@ -270,7 +278,6 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     set({
       nodes: [],
       edges: [],
-      expansions: new Set<string>(),
       specialsOpened: new Set<SpecialKind>(),
       hidden: new Set<string>(),
       pending: {},

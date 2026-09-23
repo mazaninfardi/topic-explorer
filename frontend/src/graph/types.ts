@@ -16,6 +16,8 @@ export interface TGNodeData {
   terms: string[]
   /** True while the node's content is still being fetched. */
   loading?: boolean
+  /** For a salient-term node: the term it defines (used for "familiar"). */
+  term?: string
   [key: string]: unknown
 }
 

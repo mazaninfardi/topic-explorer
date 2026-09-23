@@ -9,7 +9,7 @@ export function AuthButton() {
   if (me && !me.guest) {
     return (
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-200">{me.name || me.email}</span>
+        <span className="text-slate-700">{me.name || me.email}</span>
         <button
           type="button"
           onClick={async () => {
@@ -17,7 +17,7 @@ export function AuthButton() {
             useGraphStore.getState().reset()
             await restoreLast()
           }}
-          className="rounded px-2 py-1 text-slate-300 hover:bg-white/10 hover:text-white"
+          className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
         >
           Sign out
         </button>
@@ -25,11 +25,11 @@ export function AuthButton() {
     )
   }
 
-  // Guest: a clear button that redirects to Google and returns signed in.
+  // Guest: a clear primary button that redirects to Google and returns signed in.
   return (
     <a
       href="/api/auth/login"
-      className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 hover:bg-slate-100"
+      className="rounded-md bg-sky-600 px-3 py-1 text-sm font-medium text-white hover:bg-sky-700"
     >
       Log in
     </a>

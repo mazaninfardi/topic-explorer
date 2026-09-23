@@ -1,19 +1,22 @@
 # Topic Explorer
 
 A web app that makes complex scientific research accessible to the curious,
-regardless of background. Paste an **arXiv link** and explore the paper as a
-graph: a concise **What** first, then **Why** and **How** on demand, with any
-salient term expandable into a plain-language definition — recursively.
+regardless of background. Enter a **topic** or paste an **arXiv link** and
+explore the paper as a graph: a concise **What** first, then **Why** and **How**
+on demand, with any highlighted word expandable into a plain-language
+definition — recursively.
 
-See [`plan.md`](./plan.md) for the full plan and milestones. The current build
-is the **MVP** (real arXiv → Gemini extraction); Cloud Run deployment is still
-pending, so for now it runs locally.
+Live at **[topic-explorer.mazanin.com](https://topic-explorer.mazanin.com)**
+(Google sign-in; guests can explore a few papers). See [`plan.md`](./plan.md)
+for the plan and milestones, and [`openspec/`](./openspec) for specs and change
+history. Deploy details are in [`docs/DEPLOY.md`](./docs/DEPLOY.md).
 
 ## Stack
 
 - **Frontend:** React + Vite + Tailwind v4 + React Flow (Zustand store) — `frontend/`
-- **Backend:** FastAPI BFF (stateless) — `backend/`
+- **Backend:** FastAPI BFF (async) + SQLAlchemy/Postgres (Cloud SQL) — `backend/`
 - **Model:** Gemini `gemini-2.5-flash` via **Vertex AI** (auth via ADC — no API key)
+- **Deploy:** single Cloud Run container (FastAPI serves the built frontend + API)
 
 ## Prerequisites
 
@@ -48,9 +51,10 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:5173, paste an arXiv link (e.g.
-`https://arxiv.org/abs/1512.03385`), and click **Explore**. Extraction can take
-up to ~90s; the **What** node appears first, then **Why**/**How** stream in.
+Open http://localhost:5173, enter a topic (e.g. `diffusion models`) or paste an
+arXiv link (e.g. `https://arxiv.org/abs/1512.03385`), and click **Explore**. A
+first-time extraction can take up to ~90s; the **What** node appears first, then
+**Why**/**How** stream in. Already-analyzed papers load from the cache instantly.
 
 ## Tests
 
@@ -62,9 +66,10 @@ cd backend  && uv run pytest    # pytest
 ## Layout
 
 ```
-frontend/   React app (graph UI, ContentSource seam)
-backend/    FastAPI BFF (arXiv ingestion, Gemini/Vertex extraction)
-spikes/     Throwaway experiments (see spikes/FINDINGS.md)
-openspec/   Specs and change proposals
-plan.md     Living plan and milestones
+frontend/     React app (graph UI, ContentSource seam)
+backend/      FastAPI BFF (arXiv ingestion, Gemini/Vertex extraction, Postgres)
+spikes/       Throwaway experiments (see spikes/FINDINGS.md)
+openspec/     Specs and change proposals
+docs/         Deploy notes and archived working docs (docs/archive/)
+plan.md       Living plan and milestones
 ```

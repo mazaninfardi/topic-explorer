@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listFamiliar, type FamiliarRecord } from '../lib/db'
+import { api, type FamiliarRecord } from '../lib/api'
 import { useGraphStore } from '../graph/store'
 
 export function FamiliarTermsPage() {
@@ -7,7 +7,7 @@ export function FamiliarTermsPage() {
   const toggleFamiliar = useGraphStore((s) => s.toggleFamiliar)
 
   useEffect(() => {
-    listFamiliar().then(setRecords)
+    api.listFamiliar().then(setRecords).catch(() => setRecords([]))
   }, [])
 
   const forget = (term: string) => {

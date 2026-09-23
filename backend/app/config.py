@@ -12,6 +12,15 @@ class Settings:
     gcp_project: str = os.getenv("GCP_PROJECT", "topic-explorer-509403")
     gcp_location: str = os.getenv("GCP_LOCATION", "us-central1")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    # Postgres (async). Local dev default points at the Docker instance on 5433.
+    database_url: str = os.getenv(
+        "DATABASE_URL", "postgresql+asyncpg://postgres:dev@localhost:5433/topic_explorer"
+    )
+    # Session cookie signing secret (override in every real environment).
+    session_secret: str = os.getenv("SESSION_SECRET", "dev-insecure-secret-change-me")
+    # Google OAuth Web client id (audience for ID-token verification).
+    google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    guest_paper_limit: int = int(os.getenv("GUEST_PAPER_LIMIT", "5"))
 
 
 settings = Settings()

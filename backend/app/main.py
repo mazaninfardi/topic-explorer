@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title, is_arxiv_ref, search_arxiv
+from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title
 from .auth import COOKIE, build_auth_url, current_user, exchange_code, set_session_cookie
 from .config import settings
 from .db import SessionLocal, get_session, init_db
@@ -211,17 +211,11 @@ async def _record_guest_paper(user: User, paper_id: str) -> None:
 @app.get("/api/extract")
 async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingResponse:
     async def gen():
-        # Accept either an arXiv reference or a free-text topic. A topic is
-        # resolved to the most relevant paper via arXiv search.
-        if is_arxiv_ref(arxiv):
+        try:
             paper_id = arxiv_id(arxiv)
-        else:
-            paper_id = await search_arxiv(arxiv)
-            if not paper_id:
-                yield _sse("error", {
-                    "message": "No paper found for that topic — try different words, or paste an arXiv link.",
-                })
-                return
+        except IngestionError as exc:
+            yield _sse("error", {"message": str(exc)})
+            return
         url = f"https://arxiv.org/abs/{paper_id}"
 
         cached_what = cached_why = cached_how = None

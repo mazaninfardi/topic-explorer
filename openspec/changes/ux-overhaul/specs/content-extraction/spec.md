@@ -2,23 +2,24 @@
 
 ## ADDED Requirements
 
-### Requirement: Resolve a topic query to a paper
+### Requirement: Explain a free-text topic (no paper)
 
-The system SHALL accept either an arXiv reference or a free-text topic/question. When the input is not an
-arXiv reference, the system SHALL resolve it to a paper by searching arXiv and selecting the most relevant
-result, then extract that paper as usual. If no paper is found, the system SHALL return a plain-language
-message suggesting different words or pasting an arXiv link.
+The input offers two modes. In **paper** mode the system extracts an arXiv paper (What/Why/How) and
+validates the arXiv reference. In **topic** mode the system SHALL treat the input as a free-text topic and
+return a generic plain-language explanation — a definition-style root node with expandable highlighted
+terms, recursively — and SHALL NOT resolve it to a paper, show Why/How, or link a PDF.
 
-#### Scenario: A topic query is resolved and explored
+#### Scenario: A topic gets a generic explanation
 
-- **WHEN** the user submits free text that is not an arXiv reference
-- **THEN** the system searches arXiv and selects the most relevant paper
-- **AND** proceeds to extract and render that paper's graph
+- **WHEN** the user submits a free-text topic in topic mode
+- **THEN** the system returns a plain-language explanation as a definition-style root node
+- **AND** its highlighted terms can be expanded further, like any definition
+- **AND** no Why/How and no paper link are shown
 
-#### Scenario: A topic with no match fails gracefully
+#### Scenario: A non-arXiv link is rejected in paper mode
 
-- **WHEN** the user submits a topic for which no paper is found
-- **THEN** the system returns a plain-language message suggesting different words or pasting an arXiv link
+- **WHEN** the user submits something that isn't an arXiv reference in paper mode
+- **THEN** the system rejects it with a plain-language message and does not start an extraction
 
 ### Requirement: Communicate extraction progress
 

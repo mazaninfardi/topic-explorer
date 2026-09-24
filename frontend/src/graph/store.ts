@@ -112,9 +112,12 @@ interface GraphState {
   lastAddedId: string | null
   /** True while the pre-built onboarding example graph is showing (not a real exploration). */
   isExample: boolean
+  /** arXiv abstract URL of the paper shown in the side-by-side panel, or null when closed. */
+  paperPanelUrl: string | null
 
   explore: (ref: string) => void
   loadExample: (rec: TopicRecord) => void
+  setPaperPanel: (url: string | null) => void
   openSpecial: (kind: SpecialKind) => void
   expandTerm: (parentId: string, term: string) => void
   hideNode: (id: string) => void
@@ -161,6 +164,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   topicKey: 'empty',
   lastAddedId: null,
   isExample: false,
+  paperPanelUrl: null,
 
   explore: (ref) => {
     get().reset()
@@ -205,6 +209,8 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     get().reset()
     set(recordToState(rec, true))
   },
+
+  setPaperPanel: (url) => set({ paperPanelUrl: url }),
 
   openSpecial: (kind) => {
     const s = get()
@@ -354,6 +360,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       unsubscribe: null,
       lastAddedId: null,
       isExample: false,
+      paperPanelUrl: null,
       // `familiar` and `topicKey` intentionally preserved across explorations.
     })
   },

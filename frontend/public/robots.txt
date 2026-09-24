@@ -1,0 +1,4 @@
+# Only the main page is indexable; app routes and the API are excluded.
+User-agent: *
+Allow: /$
+Disallow: /

@@ -116,6 +116,7 @@ interface GraphState {
   paperPanelUrl: string | null
 
   explore: (ref: string) => void
+  exploreTopic: (query: string) => void
   loadExample: (rec: TopicRecord) => void
   setPaperPanel: (url: string | null) => void
   openSpecial: (kind: SpecialKind) => void
@@ -203,6 +204,38 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       lastAddedId: null,
       isExample: false,
     })
+  },
+
+  exploreTopic: (query) => {
+    get().reset()
+    const q = query.trim()
+    const key = newTopicKey()
+    set({
+      nodes: [{ id: ROOT_ID, type: 'what', position: ORIGIN, data: { kind: 'what', text: '', terms: [], term: q, topic: true, loading: true } }],
+      currentTopic: { id: `topic:${q.toLowerCase()}`, title: q },
+      status: 'extracting',
+      topicKey: key,
+      lastAddedId: null,
+      isExample: false,
+    })
+    const fill = (text: string, terms: string[]) =>
+      set((s) =>
+        // Ignore a stale result if the user has since started something else.
+        s.topicKey !== key
+          ? {}
+          : {
+              ...reflow(
+                s.nodes.map((n) => (n.id === ROOT_ID ? { ...n, data: { ...n.data, text, terms, loading: false } } : n)),
+                s.edges,
+                s.hidden,
+              ),
+              status: 'ready',
+            },
+      )
+    contentSource
+      .defineTerm(q)
+      .then((c) => fill(c.text, c.terms))
+      .catch(() => fill('Could not load this topic — please try again.', []))
   },
 
   loadExample: (rec) => {

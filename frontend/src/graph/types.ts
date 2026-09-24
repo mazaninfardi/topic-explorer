@@ -21,6 +21,8 @@ export interface TGNodeData {
   /** For the root What node: the paper's title and link. */
   paperTitle?: string
   paperUrl?: string
+  /** Root only: this is a free-text topic (a generic definition), not a paper — no Why/How, no PDF. */
+  topic?: boolean
   /** Transient flag: node is fading out before removal. */
   removing?: boolean
   [key: string]: unknown

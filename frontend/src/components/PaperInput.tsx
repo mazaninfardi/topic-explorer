@@ -11,6 +11,7 @@ export function PaperInput() {
   const [invalid, setInvalid] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const explore = useGraphStore((s) => s.explore)
+  const exploreTopic = useGraphStore((s) => s.exploreTopic)
   const status = useGraphStore((s) => s.status)
   const error = useGraphStore((s) => s.error)
   const nodeCount = useGraphStore((s) => s.nodes.length)
@@ -29,7 +30,7 @@ export function PaperInput() {
 
   const run = () => {
     const value = ref.trim()
-    if (value) explore(value)
+    if (value) (mode === 'paper' ? explore : exploreTopic)(value)
     setConfirming(false)
   }
 
@@ -65,9 +66,7 @@ export function PaperInput() {
           {seg('topic', 'Topic')}
         </div>
         <span className="text-xs text-slate-400">
-          {mode === 'paper'
-            ? 'Paste an arXiv link or ID'
-            : 'Type a topic — we find the most relevant paper and explain it'}
+          {mode === 'paper' ? 'Paste an arXiv link or ID' : 'Type anything — we explain it in plain language'}
         </span>
       </div>
 

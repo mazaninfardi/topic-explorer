@@ -39,7 +39,7 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
       className={`max-w-sm rounded-xl border-2 border-sky-500 bg-white p-4 shadow-md ${flash ? 'tg-flash' : ''}`}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">What</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">{data.topic ? 'Topic' : 'What'}</span>
         <div className="flex items-center gap-2">
           {data.paperUrl && (
             <button
@@ -59,19 +59,27 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
         <WhatSkeleton />
       ) : (
         <>
-          {data.paperTitle && (
-            <h2 className="mb-1.5 text-base font-bold leading-snug text-slate-900">{data.paperTitle}</h2>
-          )}
+          {data.topic
+            ? data.term && (
+                <h2 className="mb-1.5 text-base font-bold leading-snug text-slate-900">
+                  {data.term.replace(/\b\w/g, (c) => c.toUpperCase())}
+                </h2>
+              )
+            : data.paperTitle && (
+                <h2 className="mb-1.5 text-base font-bold leading-snug text-slate-900">{data.paperTitle}</h2>
+              )}
           <p
             data-node-id={id}
             className="nowheel nodrag max-h-72 select-text overflow-y-auto text-[13px] leading-relaxed text-slate-600"
           >
             <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
           </p>
-          <div className="mt-3 flex gap-2">
-            {action('why', 'Why')}
-            {action('how', 'How')}
-          </div>
+          {!data.topic && (
+            <div className="mt-3 flex gap-2">
+              {action('why', 'Why')}
+              {action('how', 'How')}
+            </div>
+          )}
         </>
       )}
       <Handle type="source" position={Position.Right} />

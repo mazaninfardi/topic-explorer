@@ -16,6 +16,7 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
   const expandTerm = useGraphStore((s) => s.expandTerm)
   const openSpecial = useGraphStore((s) => s.openSpecial)
   const pending = useGraphStore((s) => s.pending)
+  const setPaperPanel = useGraphStore((s) => s.setPaperPanel)
   const flash = useJustAdded(id)
 
   const action = (kind: SpecialKind, label: string) => {
@@ -41,14 +42,14 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
         <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">What</span>
         <div className="flex items-center gap-2">
           {data.paperUrl && (
-            <a
-              href={data.paperUrl}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => setPaperPanel(data.paperUrl!)}
+              title="Read the paper side-by-side"
               className="nodrag nopan text-xs text-sky-600 underline hover:text-sky-800"
             >
-              full paper ↗
-            </a>
+              read paper ⇥
+            </button>
           )}
           <NodeControls id={id} />
         </div>

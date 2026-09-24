@@ -53,14 +53,36 @@ export function SelectionDefiner() {
   const label = sel.text.length > 24 ? `${sel.text.slice(0, 24)}…` : sel.text
 
   return (
-    <button
-      type="button"
-      onMouseDown={(e) => e.preventDefault()} // keep the selection alive
-      onClick={define}
-      style={{ position: 'fixed', left: sel.x, top: sel.y - 8, transform: 'translate(-50%, -100%)', zIndex: 50 }}
-      className="rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg hover:bg-slate-700"
+    <div
+      className="tg-pop"
+      style={{ position: 'fixed', left: sel.x, top: sel.y - 10, transform: 'translate(-50%, -100%)', zIndex: 50 }}
     >
-      Define “{label}”
-    </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()} // keep the selection alive
+        onClick={define}
+        className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white hover:bg-sky-700"
+      >
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M10 5v10M5 10h10" strokeLinecap="round" />
+        </svg>
+        Define “{label}”
+      </button>
+      {/* Caret pointing at the selection */}
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '100%',
+          transform: 'translateX(-50%)',
+          width: 0,
+          height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderTop: '6px solid #0284c7',
+        }}
+      />
+    </div>
   )
 }

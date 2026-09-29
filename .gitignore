@@ -7,5 +7,5 @@
 .DS_Store
 
 # Local working docs (kept out of the repo)
-/general-idea.md
 /docs/video-script.md
+/docs/one-pager.md

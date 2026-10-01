@@ -4,6 +4,7 @@ import { familiarKey, useGraphStore } from '../graph/store'
 import { useJustAdded } from '../graph/useJustAdded'
 import { TermText } from './TermText'
 import { NodeControls } from './NodeControls'
+import { BoxTools } from './BoxTools'
 
 function KnownButton({ nodeId, term, definition }: { nodeId: string; term: string; definition: string }) {
   const isKnown = useGraphStore((s) => s.familiar.has(familiarKey(term)))
@@ -76,6 +77,7 @@ export function SalientTermNode({ id, data }: NodeProps<TGNode>) {
           <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
         </p>
       )}
+      {!data.loading && <BoxTools nodeId={id} level={data.complexity} busy={data.rephrasing} />}
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>

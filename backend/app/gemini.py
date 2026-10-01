@@ -43,6 +43,22 @@ _AUDIENCE = (
     "field. Use plain, genuinely understandable language and avoid jargon."
 )
 
+# Reading level for the complexity control (simpler / standard / technical).
+_LEVELS = {
+    "simpler": (
+        "Explain it as simply as possible — as if to a bright 12-year-old. Use "
+        "everyday words and a short concrete analogy if it helps. No jargon at all."
+    ),
+    "standard": (
+        "Explain it for a curious, intelligent non-expert: plain language, minimal "
+        "jargon, any necessary term briefly glossed."
+    ),
+    "technical": (
+        "Explain it for a technically literate reader comfortable with the field's "
+        "vocabulary. You may use precise domain terms, but stay clear and concise."
+    ),
+}
+
 # Shared rule for what counts as a salient term (quality bar).
 _SALIENT_RULE = (
     "A salient term is a SPECIALIZED concept a curious non-expert could NOT understand "
@@ -120,6 +136,39 @@ class GeminiExtractor:
             "why": {"text": data["why"], "terms": _verbatim(data["why"], data.get("why_terms", []))},
             "how": {"text": data["how"], "terms": _verbatim(data["how"], data.get("how_terms", []))},
         }
+
+    async def rephrase(self, text: str, level: str, context: str | None = None) -> dict:
+        """Reformulate a box's text at a target reading level (text-to-text).
+
+        Not a re-extraction: it rewrites the given text, so it works uniformly
+        for any box and needs no PDF. Re-emits salient terms verbatim in the
+        new text so the UI can keep highlighting.
+        """
+        guidance = _LEVELS.get(level, _LEVELS["standard"])
+        ctx = f'This is about: "{context}".\n\n' if context else ""
+        prompt = (
+            f"{_AUDIENCE}\n\n{ctx}Rewrite the following explanation. {guidance} "
+            "Keep the same meaning and roughly the same length; do not add new facts.\n"
+            f"- text: the rewritten explanation.\n- terms: salient terms in it. {_SALIENT_RULE}\n\n"
+            f"Explanation to rewrite:\n{text}"
+        )
+        data = await self._json([prompt], _DEFINE_SCHEMA)
+        return {"text": data["text"], "terms": _verbatim(data["text"], data.get("terms", []))}
+
+    async def answer(self, question: str, box_text: str, paper: bytes | None = None) -> dict:
+        """Answer a reader's follow-up question, grounded in a box (and paper)."""
+        prompt = (
+            f"{_AUDIENCE}\n\nThe reader is looking at this explanation:\n\"{box_text}\"\n\n"
+            f"They ask: \"{question}\"\n\nAnswer in 1-3 plain sentences"
+            + (", grounded in the attached paper" if paper is not None else "")
+            + ". If the question can't be answered from what's available, say so briefly.\n"
+            f"- text: the answer.\n- terms: 0-4 salient terms in the answer. {_SALIENT_RULE}"
+        )
+        parts: list[object] = [prompt]
+        if paper is not None:
+            parts = [types.Part.from_bytes(data=paper, mime_type="application/pdf"), prompt]
+        data = await self._json(parts, _DEFINE_SCHEMA)
+        return {"text": data["text"], "terms": _verbatim(data["text"], data.get("terms", []))}
 
     async def define(self, term: str) -> dict:
         prompt = (

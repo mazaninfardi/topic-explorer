@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { applyNodeChanges, type NodeChange } from '@xyflow/react'
-import type { TGEdge, TGNode } from './types'
+import type { ComplexityLevel, TGEdge, TGNode } from './types'
 import { layoutGraph } from './layout'
 import { contentSource } from '../content'
 import { arxivIdOf } from '../lib/arxiv'
@@ -10,7 +10,8 @@ import { useAuthStore } from '../lib/auth'
 const canPersist = () => Boolean(useAuthStore.getState().me?.authenticated)
 
 export const ROOT_ID = 'root'
-export type SpecialKind = 'why' | 'how'
+/** Root-anchored boxes opened from the What node (one each, parented by root). */
+export type SpecialKind = 'why' | 'how' | 'abstract'
 export type ExtractStatus = 'idle' | 'extracting' | 'ready' | 'error'
 
 let topicNonce = 0
@@ -26,7 +27,16 @@ const newTopicKey = () => `k${(topicNonce += 1)}`
  */
 const termNodeId = (term: string) => `term:${termKey(term)}`
 
+/** Deterministic id for a Q&A node: its parent plus a slug of the question. */
+const qaSlug = (q: string) =>
+  q.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48)
+const qaNodeId = (parentId: string, question: string) => `qa:${parentId}:${qaSlug(question)}`
+
 const ORIGIN = { x: 0, y: 0 }
+
+/** Boxes that can be regenerated at a complexity level (everything but the abstract). */
+const canRephrase = (node: TGNode | undefined) =>
+  Boolean(node) && node!.data.kind !== 'abstract'
 
 /** Canonical key for a term: lowercased + naive singularization (plural≈singular). */
 export function termKey(term: string): string {
@@ -50,7 +60,11 @@ export function sanitizeEdges(nodes: TGNode[], edges: TGEdge[]): TGEdge[] {
     if (e.source === e.target) continue
     if (!ids.has(e.source) || !ids.has(e.target)) continue
     const targetKind = kindOf.get(e.target)
-    if ((targetKind === 'why' || targetKind === 'how') && e.source !== ROOT_ID) continue
+    if (
+      (targetKind === 'why' || targetKind === 'how' || targetKind === 'abstract') &&
+      e.source !== ROOT_ID
+    )
+      continue
     if (parentChosen.has(e.target)) continue // one parent per node (keep first valid)
     parentChosen.add(e.target)
     out.push({ ...e, id: `e-${e.source}-${e.target}` })
@@ -101,7 +115,11 @@ interface GraphState {
   specialsOpened: Set<SpecialKind>
   hidden: Set<string>
   familiar: Set<string>
-  pending: { why?: { text: string; terms: string[] }; how?: { text: string; terms: string[] } }
+  pending: {
+    why?: { text: string; terms: string[] }
+    how?: { text: string; terms: string[] }
+    abstract?: { text: string; terms: string[] }
+  }
   currentTopic: { id: string; title: string } | null
   status: ExtractStatus
   error: string | null
@@ -120,6 +138,8 @@ interface GraphState {
   loadExample: (rec: TopicRecord) => void
   setPaperPanel: (url: string | null) => void
   openSpecial: (kind: SpecialKind) => void
+  setComplexity: (nodeId: string, level: ComplexityLevel) => void
+  askQuestion: (parentId: string, question: string) => void
   expandTerm: (parentId: string, term: string) => void
   hideNode: (id: string) => void
   restoreChildren: (parentId: string) => void
@@ -184,6 +204,8 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
           ),
           status: 'ready',
           currentTopic: { id, title: c.title || c.text.slice(0, 60) },
+          // The abstract rides along with What; stash it so the Abstract button lights up.
+          pending: c.abstract ? { ...s.pending, abstract: { text: c.abstract, terms: [] } } : s.pending,
         }))
         // A guest's remaining-paper count just changed server-side — refresh it.
         void useAuthStore.getState().load()
@@ -266,6 +288,104 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     const opened = new Set(s.specialsOpened)
     opened.add(kind)
     set({ ...reflow([...s.nodes, node], edges, s.hidden), specialsOpened: opened, lastAddedId: id })
+  },
+
+  setComplexity: (nodeId, level) => {
+    const s = get()
+    const node = s.nodes.find((n) => n.id === nodeId)
+    if (!canRephrase(node) || node!.data.loading) return
+    const prev = (node!.data.complexity ?? 'standard') as ComplexityLevel
+    if (prev === level && !node!.data.rephrasing) return
+
+    // Always regenerate from the original (standard) text so re-leveling can't drift.
+    const base = node!.data.baseText ?? node!.data.text
+    const baseTerms = node!.data.baseTerms ?? node!.data.terms
+
+    // Returning to standard is instant — just restore the original text.
+    if (level === 'standard') {
+      set((st) => ({
+        ...reflow(
+          st.nodes.map((n) =>
+            n.id === nodeId
+              ? { ...n, data: { ...n.data, text: base, terms: baseTerms, baseText: base, baseTerms, complexity: 'standard', rephrasing: false } }
+              : n,
+          ),
+          st.edges,
+          st.hidden,
+        ),
+      }))
+      return
+    }
+
+    set((st) => ({
+      nodes: st.nodes.map((n) =>
+        n.id === nodeId ? { ...n, data: { ...n.data, baseText: base, baseTerms, complexity: level, rephrasing: true } } : n,
+      ),
+    }))
+    const context = node!.data.term ?? node!.data.paperTitle ?? s.currentTopic?.title ?? undefined
+    contentSource
+      .rephrase(base, level, context)
+      .then((c) =>
+        set((st) => ({
+          ...reflow(
+            st.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...n.data, text: c.text, terms: c.terms, rephrasing: false } } : n,
+            ),
+            st.edges,
+            st.hidden,
+          ),
+        })),
+      )
+      .catch(() =>
+        // Leave the prior text intact; just drop the spinner and revert the level.
+        set((st) => ({
+          nodes: st.nodes.map((n) =>
+            n.id === nodeId ? { ...n, data: { ...n.data, complexity: prev, rephrasing: false } } : n,
+          ),
+        })),
+      )
+  },
+
+  askQuestion: (parentId, question) => {
+    const s = get()
+    if (!canPersist()) return // signed-in only; the UI prompts guests to sign in
+    const parent = s.nodes.find((n) => n.id === parentId)
+    const q = question.trim()
+    if (!parent || !q) return
+
+    const id = qaNodeId(parentId, q)
+    const existing = s.nodes.find((n) => n.id === id)
+    if (existing) {
+      // Same question already asked from this box — reveal it if hidden, else no-op.
+      if (!s.hidden.has(id)) return
+      const hidden = new Set(s.hidden)
+      hidden.delete(id)
+      set({ ...reflow(s.nodes, s.edges, hidden), hidden, lastAddedId: id })
+      return
+    }
+
+    const node: TGNode = {
+      id,
+      type: 'qa',
+      position: ORIGIN,
+      data: { kind: 'qa', question: q, text: '', terms: [], loading: true },
+    }
+    const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
+    set({ ...reflow([...s.nodes, node], edges, s.hidden), lastAddedId: id })
+
+    const arxiv = s.currentTopic && !s.currentTopic.id.startsWith('topic:') ? s.currentTopic.id : undefined
+    const fill = (text: string, terms: string[]) =>
+      set((st) => ({
+        ...reflow(
+          st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, text, terms, loading: false } } : n)),
+          st.edges,
+          st.hidden,
+        ),
+      }))
+    contentSource
+      .ask(q, parent.data.text, arxiv)
+      .then((c) => fill(c.text, c.terms))
+      .catch(() => fill('Could not answer that — please try again.', []))
   },
 
   expandTerm: (parentId, term) => {

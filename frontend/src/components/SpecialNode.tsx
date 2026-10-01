@@ -4,6 +4,7 @@ import { useGraphStore } from '../graph/store'
 import { useJustAdded } from '../graph/useJustAdded'
 import { TermText } from './TermText'
 import { NodeControls } from './NodeControls'
+import { BoxTools } from './BoxTools'
 
 const STYLES = {
   why: { border: 'border-amber-400', label: 'text-amber-600' },
@@ -31,6 +32,7 @@ export function SpecialNode({ id, data }: NodeProps<TGNode>) {
       >
         <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
       </p>
+      <BoxTools nodeId={id} level={data.complexity} busy={data.rephrasing} />
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>

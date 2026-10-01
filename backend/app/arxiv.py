@@ -52,14 +52,24 @@ async def fetch_pdf(ref: str) -> bytes:
 
 
 _ENTRY_TITLE = re.compile(r"<entry>.*?<title>(.*?)</title>", re.DOTALL)
+_ENTRY_SUMMARY = re.compile(r"<entry>.*?<summary>(.*?)</summary>", re.DOTALL)
 
 
-async def fetch_title(ref: str) -> str | None:
-    """Best-effort fetch of the paper's title from the arXiv API (None on failure)."""
+def _clean(text: str) -> str:
+    """Collapse the arXiv API's wrapped/indented text into clean prose."""
+    return " ".join(text.split())
+
+
+async def fetch_meta(ref: str) -> tuple[str | None, str | None]:
+    """Best-effort fetch of (title, abstract) from the arXiv API in one call.
+
+    Returns (None, None) on any failure; either field may be None individually.
+    The abstract is the authors' verbatim ``<summary>`` — no model involved.
+    """
     try:
         aid = arxiv_id(ref)
     except IngestionError:
-        return None
+        return None, None
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
@@ -67,7 +77,16 @@ async def fetch_title(ref: str) -> str | None:
                 headers={"User-Agent": "topic-explorer/0.1 (arxiv fetch)"},
             )
             resp.raise_for_status()
-            m = _ENTRY_TITLE.search(resp.text)
-            return " ".join(m.group(1).split()) if m else None
+            title_m = _ENTRY_TITLE.search(resp.text)
+            summary_m = _ENTRY_SUMMARY.search(resp.text)
+            title = _clean(title_m.group(1)) if title_m else None
+            abstract = _clean(summary_m.group(1)) if summary_m else None
+            return title, abstract
     except httpx.HTTPError:
-        return None
+        return None, None
+
+
+async def fetch_title(ref: str) -> str | None:
+    """Best-effort fetch of just the paper's title (None on failure)."""
+    title, _ = await fetch_meta(ref)
+    return title

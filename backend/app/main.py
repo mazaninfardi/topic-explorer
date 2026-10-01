@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .arxiv import IngestionError, arxiv_id, fetch_pdf, fetch_title
+from .arxiv import IngestionError, arxiv_id, fetch_meta, fetch_pdf
 from .auth import COOKIE, build_auth_url, current_user, exchange_code, set_session_cookie
 from .config import settings
 from .db import SessionLocal, get_session, init_db
@@ -233,6 +233,8 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
         if cached_what is not None:
             # A cached hit is a guaranteed result — count the guest's paper now.
             await _record_guest_paper(user, paper_id)
+            # The abstract rides along in the `what` payload (stashed under
+            # "abstract"); the client lifts it out into its own box.
             yield _sse("what", cached_what)
             yield _sse("why", cached_why)
             yield _sse("how", cached_how)
@@ -243,10 +245,13 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
         except IngestionError as exc:
             yield _sse("error", {"message": str(exc)})
             return
-        title_task = asyncio.create_task(fetch_title(paper_id))
+        meta_task = asyncio.create_task(fetch_meta(paper_id))
         try:
             what = await _get_extractor().extract_what(pdf)
-            what = {**what, "title": await title_task, "url": url}
+            title, abstract = await meta_task
+            # Keep the authors' verbatim abstract on the `what` payload so it is
+            # cached and restored without a new column or a separate round-trip.
+            what = {**what, "title": title, "url": url, "abstract": abstract}
             yield _sse("what", what)
             # Only count the guest's paper once we've actually produced a result.
             await _record_guest_paper(user, paper_id)
@@ -255,7 +260,7 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
                 if await s.get(PaperAnalysis, paper_id) is None:
                     s.add(
                         PaperAnalysis(
-                            arxiv_id=paper_id, title=what.get("title"), url=url,
+                            arxiv_id=paper_id, title=title, url=url,
                             what=what, why=why_how["why"], how=why_how["how"],
                         )
                     )
@@ -263,7 +268,7 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
             yield _sse("why", why_how["why"])
             yield _sse("how", why_how["how"])
         except Exception:  # noqa: BLE001
-            title_task.cancel()
+            meta_task.cancel()
             yield _sse("error", {"message": "Extraction failed. Please try again."})
 
     return StreamingResponse(
@@ -280,6 +285,62 @@ class DefineRequest(BaseModel):
 @app.post("/api/define")
 async def define(req: DefineRequest) -> dict:
     return await _get_extractor().define(req.term)
+
+
+# ---------------------------------------------------------------- box enrichment
+
+@app.get("/api/abstract")
+async def abstract(arxiv: str) -> dict:
+    """The paper's verbatim abstract — cache first, else a fresh arXiv fetch.
+
+    Fallback for a restored graph whose `pending.abstract` predates this feature.
+    """
+    try:
+        paper_id = arxiv_id(arxiv)
+    except IngestionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    async with SessionLocal() as s:
+        cached = await s.get(PaperAnalysis, paper_id)
+        if cached is not None and (cached.what or {}).get("abstract"):
+            return {"text": cached.what["abstract"], "terms": []}
+    _, text = await fetch_meta(paper_id)
+    if not text:
+        raise HTTPException(status_code=404, detail="No abstract found for that paper.")
+    return {"text": text, "terms": []}
+
+
+class RephraseRequest(BaseModel):
+    text: str
+    level: str
+    context: str | None = None
+
+
+_LEVELS = {"simpler", "standard", "technical"}
+
+
+@app.post("/api/rephrase")
+async def rephrase(req: RephraseRequest) -> dict:
+    if req.level not in _LEVELS:
+        raise HTTPException(status_code=400, detail="invalid level")
+    return await _get_extractor().rephrase(req.text, req.level, req.context)
+
+
+class AskRequest(BaseModel):
+    question: str
+    box_text: str
+    arxiv: str | None = None
+
+
+@app.post("/api/ask")
+async def ask(req: AskRequest, user: User = Depends(current_user)) -> dict:
+    _require_account(user)  # custom questions are a signed-in feature
+    pdf: bytes | None = None
+    if req.arxiv:
+        try:
+            pdf = await fetch_pdf(req.arxiv)
+        except IngestionError:
+            pdf = None  # answer from the box text alone if the PDF won't load
+    return await _get_extractor().answer(req.question, req.box_text, pdf)
 
 
 # ---------------------------------------------------------------- static (container)

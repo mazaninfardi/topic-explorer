@@ -131,6 +131,31 @@ Everything in Pre-MVP, plus:
 
 **Acceptance:** signed-in data survives across devices; app is live on Cloud Run behind Google OAuth.
 
+### Next — Richer understanding & paper media (current focus)
+Deepen the reader's grip on a box they already have open, and let them see the paper's figures — pulled
+ahead of M3/M4 below as the immediate next work. Driven by two OpenSpec changes:
+
+- **`richer-boxes`** (ships first — three features sharing one "enrich a box" backend pattern):
+  - **Original-abstract box** — a paper root gains an **Abstract** action (styled like Why/How) opening a
+    read-only box with the authors' **verbatim** abstract (arXiv metadata, no model call); gives the reader
+    ground truth to anchor on. Not offered for topics.
+  - **Complexity levels** — every generated box (What/Why/How/definition/topic/Q&A) gets a **Simpler ⇄
+    Standard ⇄ Technical** control that regenerates its text **in place** at the chosen level and remembers
+    it; already-expanded children are preserved across a rephrase. (Delivers, concretely, the first half of
+    M5's *"expand a term further"*.)
+  - **Custom questions (signed-in)** — an **Ask** affordance on every box lets a signed-in user ask a
+    follow-up; the answer becomes a new **Q&A child node** (question + plain-language answer with its own
+    highlighted words), expandable like any box. Guests are prompted to sign in.
+- **`paper-diagrams`** (ships after — heavier; needs real figure extraction):
+  - **Figure gallery** — a **Figures** action on a paper root extracts the paper's **real figures** from
+    the PDF on demand (model-assisted localisation → render+crop with PyMuPDF, cached in GCS), shown one at
+    a time with captions in a **gallery** the reader pages back/forth **within one box**. (First media
+    capability — opens the "multi-modal content" direction M5 extends with video and other sources.)
+
+**Acceptance:** on a paper, open the verbatim abstract; dial any generated box simpler→technical in place
+without losing its children; a signed-in user asks a follow-up and gets a Q&A child node (guests get a
+sign-in prompt); open Figures and page through the paper's real figures with captions, instant on re-open.
+
 ### M3 — retention, richer input, accessibility & trust
 - Let users **explain a familiar term** and get a **remembered-how-well score** shown back to them.
 - **Omnisearch** to jump quickly to topics and terms.
@@ -147,7 +172,7 @@ Everything in Pre-MVP, plus:
 
 ### M5 — deeper learning, media & authoring
 Turn one-shot exploration into a durable learning tool.
-- **Expand a term further** — go deeper on an already-defined term (more detail / another hop on demand, beyond the first plain-language definition).
+- **Expand a term further** — go deeper on an already-defined term (more detail / another hop on demand, beyond the first plain-language definition). *(Partly delivered early by the "Richer understanding" milestone's complexity levels + custom questions; what remains here is purely additive "go one more hop" depth.)*
 - **YouTube integration** — surface a relevant explainer video for a topic or term.
 - **More sources of information** — beyond arXiv/PDF: web articles, textbooks, docs (extends M3's richer input).
 - **Search across explored topics** — find within your own saved explorations, not just a new lookup (extends M3's omnisearch).

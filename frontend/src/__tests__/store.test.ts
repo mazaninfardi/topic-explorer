@@ -4,6 +4,8 @@ import type { ExploreHandlers } from '../content/ContentSource'
 const h = vi.hoisted(() => ({
   handlers: null as ExploreHandlers | null,
   defineTerm: vi.fn(async () => ({ text: 'A definition.', terms: [] as string[] })),
+  rephrase: vi.fn(async (_t: string, level: string) => ({ text: `[${level}] text`, terms: [] as string[] })),
+  ask: vi.fn(async (q: string) => ({ text: `Answer to: ${q}`, terms: [] as string[] })),
 }))
 
 vi.mock('../content', () => ({
@@ -13,6 +15,17 @@ vi.mock('../content', () => ({
       return () => {}
     },
     defineTerm: h.defineTerm,
+    rephrase: h.rephrase,
+    ask: h.ask,
+  },
+}))
+
+// Guest by default (matches the familiar tests, which assume no persistence);
+// flip `auth.authenticated` in a test to exercise the signed-in paths.
+const auth = vi.hoisted(() => ({ authenticated: false }))
+vi.mock('../lib/auth', () => ({
+  useAuthStore: {
+    getState: () => ({ me: { authenticated: auth.authenticated }, load: async () => {} }),
   },
 }))
 
@@ -33,6 +46,9 @@ beforeEach(() => {
   useGraphStore.getState().setFamiliar([])
   h.handlers = null
   h.defineTerm.mockClear()
+  h.rephrase.mockClear()
+  h.ask.mockClear()
+  auth.authenticated = false
 })
 
 describe('graph store', () => {
@@ -151,6 +167,63 @@ describe('graph store', () => {
     expect(new Set(ids).size).toBe(ids.length) // no duplicate ids
     expect(ids).toContain('n5') // the How node survived
     expect(useGraphStore.getState().nodes.find((n) => n.id === 'n5')!.data.kind).toBe('how')
+  })
+
+  it('opens the abstract box from the What payload', () => {
+    start({ text: 'What text with foo', terms: ['foo'], abstract: 'The verbatim abstract.' } as never)
+    expect(useGraphStore.getState().pending.abstract?.text).toBe('The verbatim abstract.')
+    useGraphStore.getState().openSpecial('abstract')
+    const abs = useGraphStore.getState().nodes.find((n) => n.data.kind === 'abstract')
+    expect(abs?.data.text).toBe('The verbatim abstract.')
+    expect(abs?.data.terms).toEqual([])
+  })
+
+  it('setComplexity regenerates a box in place, preserving its children', async () => {
+    start()
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    await vi.waitFor(() => expect(useGraphStore.getState().nodes).toHaveLength(2))
+    const before = useGraphStore.getState().nodes.map((n) => n.id).sort()
+
+    useGraphStore.getState().setComplexity(ROOT_ID, 'simpler')
+    await vi.waitFor(() => expect(useGraphStore.getState().nodes.find((n) => n.id === ROOT_ID)!.data.text).toBe('[simpler] text'))
+    // The child survived the rephrase; ids unchanged.
+    expect(useGraphStore.getState().nodes.map((n) => n.id).sort()).toEqual(before)
+    expect(useGraphStore.getState().nodes.find((n) => n.id === ROOT_ID)!.data.complexity).toBe('simpler')
+
+    // Back to standard is instant and restores the original text (no rephrase call).
+    h.rephrase.mockClear()
+    useGraphStore.getState().setComplexity(ROOT_ID, 'standard')
+    expect(useGraphStore.getState().nodes.find((n) => n.id === ROOT_ID)!.data.text).toBe('What text with foo')
+    expect(h.rephrase).not.toHaveBeenCalled()
+  })
+
+  it('does not rephrase the abstract box', () => {
+    start({ text: 'W', terms: [], abstract: 'Abstract.' } as never)
+    useGraphStore.getState().openSpecial('abstract')
+    useGraphStore.getState().setComplexity('abstract', 'simpler')
+    expect(h.rephrase).not.toHaveBeenCalled()
+  })
+
+  it('a signed-in user asks a question → a Q&A child node; duplicates are a no-op', async () => {
+    auth.authenticated = true
+    start()
+    useGraphStore.getState().askQuestion(ROOT_ID, 'What about foo?')
+    await vi.waitFor(() =>
+      expect(useGraphStore.getState().nodes.find((n) => n.data.kind === 'qa')?.data.text).toBe('Answer to: What about foo?'),
+    )
+    const qa = useGraphStore.getState().nodes.find((n) => n.data.kind === 'qa')!
+    expect(qa.data.question).toBe('What about foo?')
+    const count = useGraphStore.getState().nodes.length
+    useGraphStore.getState().askQuestion(ROOT_ID, 'What about foo?')
+    expect(useGraphStore.getState().nodes.length).toBe(count) // deduped
+  })
+
+  it('a guest cannot ask (no node created, no call)', () => {
+    auth.authenticated = false
+    start()
+    useGraphStore.getState().askQuestion(ROOT_ID, 'Why?')
+    expect(useGraphStore.getState().nodes.some((n) => n.data.kind === 'qa')).toBe(false)
+    expect(h.ask).not.toHaveBeenCalled()
   })
 
   it('loadExample marks the graph as an example', () => {

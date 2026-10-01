@@ -31,4 +31,4 @@
 ## 6. Verify
 - [x] 6.1 Typecheck + lint + unit tests green (25 pass); light store tests (open abstract; setComplexity preserves children; duplicate question no-op; guest ask gated); production build OK
 - [x] 6.2 In-browser e2e (user-verified locally): abstract on a paper; dial simpler→technical with children surviving; guest ask → sign-in prompt. Backend smoke: abstract verbatim, real Gemini rephrase, level→400, guest ask→401
-- [ ] 6.3 Merge to main; deploy to Cloud Run; verify live
+- [x] 6.3 Merged to main; deployed to Cloud Run (revision topic-explorer-00011-fxh); verified live at topic-explorer.mazanin.com (health 200, abstract verbatim, rephrase 400 on bad level, guest ask 401)

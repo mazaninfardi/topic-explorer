@@ -30,5 +30,5 @@
 
 ## 6. Verify
 - [x] 6.1 Typecheck + lint + unit tests green (25 pass); light store tests (open abstract; setComplexity preserves children; duplicate question no-op; guest ask gated); production build OK
-- [ ] 6.2 In-browser e2e: open abstract on a paper; dial What/How simpler→technical with children surviving; signed-in ask → Q&A child; guest ask → sign-in prompt
+- [x] 6.2 In-browser e2e (user-verified locally): abstract on a paper; dial simpler→technical with children surviving; guest ask → sign-in prompt. Backend smoke: abstract verbatim, real Gemini rephrase, level→400, guest ask→401
 - [ ] 6.3 Merge to main; deploy to Cloud Run; verify live

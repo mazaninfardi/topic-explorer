@@ -5,10 +5,12 @@ import { useJustAdded } from '../graph/useJustAdded'
 import { TermText } from './TermText'
 import { NodeControls } from './NodeControls'
 import { WhatSkeleton } from './WhatSkeleton'
+import { BoxTools } from './BoxTools'
 
 const SPECIAL_BTN: Record<SpecialKind, string> = {
   why: 'border-amber-300 text-amber-700 hover:bg-amber-50',
   how: 'border-violet-300 text-violet-700 hover:bg-violet-50',
+  abstract: 'border-slate-300 text-slate-600 hover:bg-slate-50',
 }
 
 /** Root node: the paper (title) with its What summary, Why/How, salient terms. */
@@ -75,11 +77,13 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
             <TermText text={data.text} terms={data.terms} onTermClick={(t) => expandTerm(id, t)} />
           </p>
           {!data.topic && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {action('why', 'Why')}
               {action('how', 'How')}
+              {pending.abstract && action('abstract', 'Abstract')}
             </div>
           )}
+          <BoxTools nodeId={id} level={data.complexity} busy={data.rephrasing} />
         </>
       )}
       <Handle type="source" position={Position.Right} />

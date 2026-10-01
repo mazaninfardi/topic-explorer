@@ -45,4 +45,26 @@ export class BackendContentSource implements ContentSource {
     if (!resp.ok) throw new Error('Failed to define term')
     return resp.json()
   }
+
+  async rephrase(text: string, level: string, context?: string): Promise<NodeContent> {
+    const resp = await fetch('/api/rephrase', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, level, context }),
+    })
+    if (!resp.ok) throw new Error('Failed to rephrase')
+    return resp.json()
+  }
+
+  async ask(question: string, boxText: string, arxiv?: string): Promise<NodeContent> {
+    const resp = await fetch('/api/ask', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question, box_text: boxText, arxiv }),
+    })
+    if (resp.status === 401) throw new Error('sign-in required')
+    if (!resp.ok) throw new Error('Failed to answer')
+    return resp.json()
+  }
 }

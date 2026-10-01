@@ -14,12 +14,16 @@ import type { TGNode } from '../graph/types'
 import { WhatNode } from './WhatNode'
 import { SpecialNode } from './SpecialNode'
 import { SalientTermNode } from './SalientTermNode'
+import { AbstractNode } from './AbstractNode'
+import { QaNode } from './QaNode'
 
 const NODE_COLOR: Record<string, string> = {
   what: '#0ea5e9', // sky-500
   why: '#f59e0b', // amber-500
   how: '#8b5cf6', // violet-500
+  abstract: '#64748b', // slate-500
   'salient-term': '#94a3b8', // slate-400
+  qa: '#fb7185', // rose-400
 }
 
 /** True if the node's box isn't comfortably within the visible pane. */
@@ -83,15 +87,23 @@ export function GraphCanvas() {
   const currentTitle = useGraphStore((s) => (s.nodes.length > 0 ? s.currentTopic?.title : null))
 
   const nodeTypes = useMemo<NodeTypes>(
-    () => ({ what: WhatNode, why: SpecialNode, how: SpecialNode, 'salient-term': SalientTermNode }),
+    () => ({
+      what: WhatNode,
+      why: SpecialNode,
+      how: SpecialNode,
+      abstract: AbstractNode,
+      'salient-term': SalientTermNode,
+      qa: QaNode,
+    }),
     [],
   )
 
   // Structural edges (What→Why/How) read solid; definition edges read lighter/dashed.
   const styledEdges = useMemo(() => {
     const kindOf = new Map(nodes.map((n) => [n.id, (n as TGNode).data.kind]))
+    const dashed = new Set(['salient-term', 'qa'])
     return edges.map((e) =>
-      kindOf.get(e.target) === 'salient-term'
+      dashed.has(kindOf.get(e.target) ?? '')
         ? { ...e, style: { stroke: '#cbd5e1', strokeDasharray: '4 4' } }
         : { ...e, style: { stroke: '#94a3b8', strokeWidth: 1.5 } },
     )

@@ -4,10 +4,12 @@ export interface NodeContent {
   terms: string[]
 }
 
-/** The What payload also carries the paper title and a link to the paper. */
+/** The What payload also carries the paper title, link, and verbatim abstract. */
 export interface WhatContent extends NodeContent {
   title?: string | null
   url?: string
+  /** The paper's verbatim abstract, when available (papers only). */
+  abstract?: string | null
 }
 
 /** Streaming callbacks for an exploration (What arrives first, then Why/How). */
@@ -27,4 +29,8 @@ export interface ContentSource {
   explore(ref: string, handlers: ExploreHandlers): () => void
   /** Define a salient term (general, plain-language). */
   defineTerm(term: string): Promise<NodeContent>
+  /** Reformulate a box's text at a complexity level (text-to-text). */
+  rephrase(text: string, level: string, context?: string): Promise<NodeContent>
+  /** Answer a custom question grounded in a box (and paper); signed-in only. */
+  ask(question: string, boxText: string, arxiv?: string): Promise<NodeContent>
 }

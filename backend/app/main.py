@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import secrets
@@ -13,11 +14,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .arxiv import IngestionError, arxiv_id, fetch_meta, fetch_pdf
+from .figures import render_figures
 from .auth import COOKIE, build_auth_url, current_user, exchange_code, set_session_cookie
 from .config import settings
 from .db import SessionLocal, get_session, init_db
 from .gemini import GeminiExtractor
-from .models import FamiliarTerm, PaperAnalysis, Topic, User
+from .models import FamiliarTerm, PaperAnalysis, PaperFigures, Topic, User
 
 
 @asynccontextmanager
@@ -341,6 +343,73 @@ async def ask(req: AskRequest, user: User = Depends(current_user)) -> dict:
         except IngestionError:
             pdf = None  # answer from the box text alone if the PDF won't load
     return await _get_extractor().answer(req.question, req.box_text, pdf)
+
+
+# ---------------------------------------------------------------- figures
+
+def _figures_manifest(paper_id: str, figures: list) -> list[dict]:
+    """Public manifest: number + caption + a backend image URL (no bytes inline)."""
+    return [
+        {"number": f.get("number", str(i + 1)), "caption": f.get("caption", ""),
+         "imageUrl": f"/api/figimg?arxiv={paper_id}&idx={i}"}
+        for i, f in enumerate(figures)
+    ]
+
+
+async def _extract_figures(paper_id: str) -> list:
+    """Locate + render a paper's figures and cache the row (idempotent)."""
+    pdf = await fetch_pdf(paper_id)
+    specs = await _get_extractor().locate_figures(pdf)
+    figures = await asyncio.to_thread(render_figures, pdf, specs) if specs else []
+    async with SessionLocal() as s:
+        if await s.get(PaperFigures, paper_id) is None:
+            s.add(PaperFigures(arxiv_id=paper_id, figures=figures))
+            await s.commit()
+    return figures
+
+
+@app.get("/api/figures")
+async def figures(arxiv: str) -> dict:
+    """The paper's figures, extracted on first request and cached thereafter."""
+    try:
+        paper_id = arxiv_id(arxiv)
+    except IngestionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    async with SessionLocal() as s:
+        cached = await s.get(PaperFigures, paper_id)
+    figs = cached.figures if cached is not None else None
+    if figs is None:
+        try:
+            figs = await _extract_figures(paper_id)
+        except IngestionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail="Could not extract figures.") from exc
+    return {"figures": _figures_manifest(paper_id, figs)}
+
+
+@app.get("/api/figimg")
+async def figimg(arxiv: str, idx: int) -> Response:
+    """Serve one cached figure image by index (bytes decoded from the DB row)."""
+    try:
+        paper_id = arxiv_id(arxiv)
+    except IngestionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    async with SessionLocal() as s:
+        row = await s.get(PaperFigures, paper_id)
+    figs = row.figures if row is not None else []
+    if idx < 0 or idx >= len(figs):
+        raise HTTPException(status_code=404, detail="no such figure")
+    fig = figs[idx]
+    try:
+        data = base64.b64decode(fig["b64"])
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="figure unavailable") from exc
+    return Response(
+        content=data,
+        media_type=fig.get("content_type", "image/png"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 # ---------------------------------------------------------------- static (container)

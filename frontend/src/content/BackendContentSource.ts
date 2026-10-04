@@ -1,4 +1,4 @@
-import type { ContentSource, ExploreHandlers, NodeContent } from './ContentSource'
+import type { ContentSource, ExploreHandlers, FigureManifest, NodeContent } from './ContentSource'
 
 /** Talks to the FastAPI BFF: SSE for extraction, REST for term definitions. */
 export class BackendContentSource implements ContentSource {
@@ -65,6 +65,12 @@ export class BackendContentSource implements ContentSource {
     })
     if (resp.status === 401) throw new Error('sign-in required')
     if (!resp.ok) throw new Error('Failed to answer')
+    return resp.json()
+  }
+
+  async fetchFigures(arxiv: string): Promise<FigureManifest> {
+    const resp = await fetch(`/api/figures?arxiv=${encodeURIComponent(arxiv)}`)
+    if (!resp.ok) throw new Error('Failed to load figures')
     return resp.json()
   }
 }

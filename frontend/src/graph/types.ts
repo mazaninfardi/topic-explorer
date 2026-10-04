@@ -7,11 +7,19 @@ import type { Node, Edge } from '@xyflow/react'
  * - `abstract`: the paper's verbatim abstract (read-only; paper roots only).
  * - `salient-term`: a plain-language definition node; may nest further terms.
  * - `qa`: a signed-in user's custom question + its answer (a child of any box).
+ * - `figures`: a gallery of the paper's figures (one per paper; paper roots only).
  */
-export type NodeKind = 'what' | 'why' | 'how' | 'abstract' | 'salient-term' | 'qa'
+export type NodeKind = 'what' | 'why' | 'how' | 'abstract' | 'salient-term' | 'qa' | 'figures'
 
 /** Reading level for the per-box complexity control (default `standard`). */
 export type ComplexityLevel = 'simpler' | 'standard' | 'technical'
+
+/** One figure in the gallery node: a backend image URL, its caption, and label. */
+export interface FigureItem {
+  imageUrl: string
+  caption: string
+  number: string
+}
 
 export interface TGNodeData {
   kind: NodeKind
@@ -27,6 +35,9 @@ export interface TGNodeData {
   term?: string
   /** For a qa node: the question the user asked. */
   question?: string
+  /** For a figures node: the gallery items and the currently shown index. */
+  items?: FigureItem[]
+  current?: number
   /** Chosen complexity level for a generated box (absent ⇒ standard). */
   complexity?: ComplexityLevel
   /** The original (standard-level) text/terms, kept so re-leveling never drifts. */

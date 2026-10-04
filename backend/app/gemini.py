@@ -38,6 +38,39 @@ _DEFINE_SCHEMA = {
     "required": ["text", "terms"],
 }
 
+_FIGURES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "figures": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "number": {"type": "string"},
+                    "caption": {"type": "string"},
+                    "page": {"type": "integer"},
+                    "bbox": {"type": "array", "items": {"type": "number"}},
+                },
+                "required": ["number", "caption", "page", "bbox"],
+            },
+        }
+    },
+    "required": ["figures"],
+}
+
+_FIGURES_PROMPT = (
+    "Find the FIGURES in the attached paper — the labelled diagrams, plots, "
+    "architecture schematics, and photographs (NOT tables, equations, the title "
+    "block, headers/footers, or page decoration). For each, in reading order, give:\n"
+    "- number: the figure's label as printed (e.g. \"1\", \"2a\").\n"
+    "- caption: its caption text, verbatim and complete.\n"
+    "- page: the 1-based PDF page the figure appears on.\n"
+    "- bbox: the figure's bounding box as [x0, y0, x1, y1], each a fraction from "
+    "0 to 1 of the page, origin at the TOP-LEFT. Enclose ONLY the figure's visual "
+    "area (exclude its caption text). Be generous rather than tight if unsure.\n"
+    "Return figures only; if the paper has none, return an empty list."
+)
+
 _AUDIENCE = (
     "You are helping a curious, intelligent non-expert with no background in the "
     "field. Use plain, genuinely understandable language and avoid jargon."
@@ -136,6 +169,14 @@ class GeminiExtractor:
             "why": {"text": data["why"], "terms": _verbatim(data["why"], data.get("why_terms", []))},
             "how": {"text": data["how"], "terms": _verbatim(data["how"], data.get("how_terms", []))},
         }
+
+    async def locate_figures(self, pdf: bytes) -> list[dict]:
+        """Locate the paper's figures: [{number, caption, page, bbox}] in reading order."""
+        data = await self._json(
+            [types.Part.from_bytes(data=pdf, mime_type="application/pdf"), _FIGURES_PROMPT],
+            _FIGURES_SCHEMA,
+        )
+        return data.get("figures", [])
 
     async def rephrase(self, text: str, level: str, context: str | None = None) -> dict:
         """Reformulate a box's text at a target reading level (text-to-text).

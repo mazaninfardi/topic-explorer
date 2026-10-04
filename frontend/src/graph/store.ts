@@ -61,7 +61,7 @@ export function sanitizeEdges(nodes: TGNode[], edges: TGEdge[]): TGEdge[] {
     if (!ids.has(e.source) || !ids.has(e.target)) continue
     const targetKind = kindOf.get(e.target)
     if (
-      (targetKind === 'why' || targetKind === 'how' || targetKind === 'abstract') &&
+      (targetKind === 'why' || targetKind === 'how' || targetKind === 'abstract' || targetKind === 'figures') &&
       e.source !== ROOT_ID
     )
       continue
@@ -138,6 +138,8 @@ interface GraphState {
   loadExample: (rec: TopicRecord) => void
   setPaperPanel: (url: string | null) => void
   openSpecial: (kind: SpecialKind) => void
+  openFigures: () => void
+  setFigureIndex: (nodeId: string, index: number) => void
   setComplexity: (nodeId: string, level: ComplexityLevel) => void
   askQuestion: (parentId: string, question: string) => void
   expandTerm: (parentId: string, term: string) => void
@@ -289,6 +291,59 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     opened.add(kind)
     set({ ...reflow([...s.nodes, node], edges, s.hidden), specialsOpened: opened, lastAddedId: id })
   },
+
+  openFigures: () => {
+    const s = get()
+    const root = s.nodes.find((n) => n.id === ROOT_ID)
+    if (!root || !root.data.paperUrl) return // figures are a paper feature only
+
+    const id = 'figures'
+    const existing = s.nodes.find((n) => n.id === id)
+    if (existing) {
+      if (s.hidden.has(id)) {
+        const hidden = new Set(s.hidden)
+        hidden.delete(id)
+        set({ ...reflow(s.nodes, s.edges, hidden), hidden, lastAddedId: id })
+      } else {
+        set({ lastAddedId: id }) // already open — pan it back into view
+      }
+      return
+    }
+
+    const node: TGNode = {
+      id,
+      type: 'figures',
+      position: ORIGIN,
+      data: { kind: 'figures', text: '', terms: [], loading: true, items: [], current: 0 },
+    }
+    const edges = [...s.edges, { id: `e-${ROOT_ID}-${id}`, source: ROOT_ID, target: id }]
+    set({ ...reflow([...s.nodes, node], edges, s.hidden), lastAddedId: id })
+
+    const arxiv = s.currentTopic?.id ?? ''
+    const done = (patch: Partial<TGNode['data']>) =>
+      set((st) => ({
+        ...reflow(
+          st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, loading: false, ...patch } } : n)),
+          st.edges,
+          st.hidden,
+        ),
+      }))
+    contentSource
+      .fetchFigures(arxiv)
+      .then(({ figures }) => done({ items: figures, current: 0 }))
+      .catch(() => done({ items: [], current: 0, text: 'Could not load figures — click Figures again to retry.' }))
+  },
+
+  setFigureIndex: (nodeId, index) =>
+    set((st) => ({
+      nodes: st.nodes.map((n) => {
+        if (n.id !== nodeId) return n
+        const len = (n.data.items ?? []).length
+        if (len === 0) return n
+        const current = ((index % len) + len) % len // wrap around
+        return { ...n, data: { ...n.data, current } }
+      }),
+    })),
 
   setComplexity: (nodeId, level) => {
     const s = get()

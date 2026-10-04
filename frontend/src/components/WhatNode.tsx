@@ -17,6 +17,7 @@ const SPECIAL_BTN: Record<SpecialKind, string> = {
 export function WhatNode({ id, data }: NodeProps<TGNode>) {
   const expandTerm = useGraphStore((s) => s.expandTerm)
   const openSpecial = useGraphStore((s) => s.openSpecial)
+  const openFigures = useGraphStore((s) => s.openFigures)
   const pending = useGraphStore((s) => s.pending)
   const setPaperPanel = useGraphStore((s) => s.setPaperPanel)
   const flash = useJustAdded(id)
@@ -81,6 +82,13 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
               {action('why', 'Why')}
               {action('how', 'How')}
               {pending.abstract && action('abstract', 'Abstract')}
+              <button
+                type="button"
+                onClick={() => openFigures()}
+                className="nodrag nopan rounded-md border border-cyan-300 px-3 py-1 text-sm font-medium text-cyan-700 transition-colors hover:bg-cyan-50"
+              >
+                Figures
+              </button>
             </div>
           )}
           <BoxTools nodeId={id} level={data.complexity} busy={data.rephrasing} />

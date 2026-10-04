@@ -73,3 +73,19 @@ class PaperAnalysis(Base):
     why: Mapped[dict] = mapped_column(JSONB)
     how: Mapped[dict] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class PaperFigures(Base):
+    """Shared, persistent figure cache — one row per paper (extracted on demand).
+
+    The row's existence means extraction has run (even when `figures` is empty),
+    so a figureless paper isn't re-extracted on every open. `figures` holds the
+    ordered manifest with base64 PNG bytes inline:
+    ``[{number, caption, b64, content_type}]`` — a handful per paper (~1-2 MB).
+    """
+
+    __tablename__ = "paper_figures"
+
+    arxiv_id: Mapped[str] = mapped_column(String, primary_key=True)
+    figures: Mapped[list] = mapped_column(JSONB, default=list)
+    extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

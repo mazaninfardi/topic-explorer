@@ -6,6 +6,12 @@ const h = vi.hoisted(() => ({
   defineTerm: vi.fn(async () => ({ text: 'A definition.', terms: [] as string[] })),
   rephrase: vi.fn(async (_t: string, level: string) => ({ text: `[${level}] text`, terms: [] as string[] })),
   ask: vi.fn(async (q: string) => ({ text: `Answer to: ${q}`, terms: [] as string[] })),
+  fetchFigures: vi.fn(async () => ({
+    figures: [
+      { number: '1', caption: 'First', imageUrl: '/api/figimg?arxiv=x&idx=0' },
+      { number: '2', caption: 'Second', imageUrl: '/api/figimg?arxiv=x&idx=1' },
+    ],
+  })),
 }))
 
 vi.mock('../content', () => ({
@@ -17,6 +23,7 @@ vi.mock('../content', () => ({
     defineTerm: h.defineTerm,
     rephrase: h.rephrase,
     ask: h.ask,
+    fetchFigures: h.fetchFigures,
   },
 }))
 
@@ -48,6 +55,7 @@ beforeEach(() => {
   h.defineTerm.mockClear()
   h.rephrase.mockClear()
   h.ask.mockClear()
+  h.fetchFigures.mockClear()
   auth.authenticated = false
 })
 
@@ -224,6 +232,29 @@ describe('graph store', () => {
     useGraphStore.getState().askQuestion(ROOT_ID, 'Why?')
     expect(useGraphStore.getState().nodes.some((n) => n.data.kind === 'qa')).toBe(false)
     expect(h.ask).not.toHaveBeenCalled()
+  })
+
+  it('opens a figures gallery on a paper and pages with wraparound', async () => {
+    start({ text: 'What', terms: [], url: 'https://arxiv.org/abs/1512.03385' } as never)
+    useGraphStore.getState().openFigures()
+    await vi.waitFor(() => {
+      const fig = useGraphStore.getState().nodes.find((n) => n.data.kind === 'figures')
+      expect(fig?.data.loading).toBe(false)
+      expect((fig?.data.items ?? []).length).toBe(2)
+    })
+    const figId = useGraphStore.getState().nodes.find((n) => n.data.kind === 'figures')!.id
+    expect(useGraphStore.getState().nodes.find((n) => n.id === figId)!.data.current).toBe(0)
+    useGraphStore.getState().setFigureIndex(figId, -1) // wrap back to last
+    expect(useGraphStore.getState().nodes.find((n) => n.id === figId)!.data.current).toBe(1)
+    useGraphStore.getState().setFigureIndex(figId, 2) // wrap forward to first
+    expect(useGraphStore.getState().nodes.find((n) => n.id === figId)!.data.current).toBe(0)
+  })
+
+  it('does not offer figures for a topic (non-paper) root', () => {
+    useGraphStore.getState().exploreTopic('diffusion models')
+    useGraphStore.getState().openFigures()
+    expect(useGraphStore.getState().nodes.some((n) => n.data.kind === 'figures')).toBe(false)
+    expect(h.fetchFigures).not.toHaveBeenCalled()
   })
 
   it('loadExample marks the graph as an example', () => {

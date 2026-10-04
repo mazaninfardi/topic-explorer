@@ -14,6 +14,8 @@ dependencies = [
     "pyjwt>=2.14.0",
     "google-auth>=2.0",
     "cloud-sql-python-connector[asyncpg]>=1.22.0",
+    "pypdfium2>=4.30",
+    "pillow>=10.0",
 ]
 
 [dependency-groups]

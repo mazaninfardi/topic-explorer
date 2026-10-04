@@ -16,6 +16,7 @@ import { SpecialNode } from './SpecialNode'
 import { SalientTermNode } from './SalientTermNode'
 import { AbstractNode } from './AbstractNode'
 import { QaNode } from './QaNode'
+import { FiguresNode } from './FiguresNode'
 
 const NODE_COLOR: Record<string, string> = {
   what: '#0ea5e9', // sky-500
@@ -24,6 +25,7 @@ const NODE_COLOR: Record<string, string> = {
   abstract: '#64748b', // slate-500
   'salient-term': '#94a3b8', // slate-400
   qa: '#fb7185', // rose-400
+  figures: '#06b6d4', // cyan-500
 }
 
 /** True if the node's box isn't comfortably within the visible pane. */
@@ -94,6 +96,7 @@ export function GraphCanvas() {
       abstract: AbstractNode,
       'salient-term': SalientTermNode,
       qa: QaNode,
+      figures: FiguresNode,
     }),
     [],
   )

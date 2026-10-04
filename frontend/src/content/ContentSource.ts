@@ -33,4 +33,17 @@ export interface ContentSource {
   rephrase(text: string, level: string, context?: string): Promise<NodeContent>
   /** Answer a custom question grounded in a box (and paper); signed-in only. */
   ask(question: string, boxText: string, arxiv?: string): Promise<NodeContent>
+  /** Fetch (extracting on first call) a paper's figures. */
+  fetchFigures(arxiv: string): Promise<FigureManifest>
+}
+
+/** A figure in the gallery manifest: caption + label + a backend image URL. */
+export interface FigureManifestItem {
+  number: string
+  caption: string
+  imageUrl: string
+}
+
+export interface FigureManifest {
+  figures: FigureManifestItem[]
 }

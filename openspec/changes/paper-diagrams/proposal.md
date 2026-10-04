@@ -51,10 +51,10 @@ so a second visit is instant.
   states; a store action to open figures (lazy-trigger extraction, then populate) and page the index.
 - **Backend:** figure extraction from the PDF and a serving path. Approach: **model-assisted
   localisation** — Gemini (which already has the PDF) returns, per figure, `{page, bbox, caption,
-  number}`; the backend renders that page region with **PyMuPDF** and crops it to a PNG; falls back to the
-  full page image when a bbox is unreliable. Images are **cached in a GCS bucket** keyed by arXiv id +
-  index (Cloud Run disk is ephemeral) and exposed via `GET /api/figures?arxivId=` (list of caption +
-  number + image URL) with images proxied/served by the backend. New Python dep: PyMuPDF; new bucket +
-  secret/config.
+  number}`; the backend renders that page region with **pypdfium2 + Pillow** (permissive licence) and
+  crops it to a PNG; falls back to the full page image when a bbox is unreliable. Images are **cached in
+  Postgres** — a new `paper_figures` table, one JSONB row per paper with inline base64 PNGs (no new
+  infra). Exposed via `GET /api/figures?arxiv=` (manifest of number + caption + a backend image URL) and
+  `GET /api/figimg?arxiv=&idx=` (the bytes). New Python deps: pypdfium2, Pillow.
 - **Docs:** `plan.md` "Richer understanding" milestone covers this (shared with `richer-boxes`); it is the
   first media capability and opens the multi-modal direction M5 extends.

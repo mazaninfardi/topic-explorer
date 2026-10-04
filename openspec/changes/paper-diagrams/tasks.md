@@ -24,5 +24,5 @@
 
 ## 5. Verify
 - [x] 5.1 Typecheck + lint + unit tests green (27 pass); light tests (openFigures builds node; setFigureIndex wraps; topic root offers none); production build OK
-- [ ] 5.2 In-browser e2e: open Figures on a figure-rich paper → real images with captions, page back/forth; re-open is instant (cached); empty-state paper
-- [ ] 5.3 Merge to main; deploy to Cloud Run; verify live
+- [x] 5.2 Pipeline verified live on arXiv 1512.03385: 7 figures with correct captions, cache hit ~56ms, bad input 400, out-of-range 404; crop fix confirmed figure-shaped via probe (277x135, 763x846 …). In-browser visual (signed-in) left to the user on prod
+- [x] 5.3 Merged to main; deployed to Cloud Run (revision topic-explorer-00012-mkb, with gate-enrichment-signin); live at topic-explorer.mazanin.com

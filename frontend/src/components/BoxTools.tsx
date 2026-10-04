@@ -41,24 +41,11 @@ function ComplexityControl({ nodeId, level, busy }: { nodeId: string; level: Com
   )
 }
 
-/** The "Ask a follow-up" affordance (signed-in); guests are sent to sign in. */
+/** The "Ask a follow-up" affordance. Only rendered for signed-in users (BoxTools gates). */
 function AskBox({ parentId }: { parentId: string }) {
-  const me = useAuthStore((s) => s.me)
   const askQuestion = useGraphStore((s) => s.askQuestion)
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
-
-  if (!me?.authenticated) {
-    return (
-      <a
-        href="/api/auth/login"
-        className="nodrag nopan text-[10px] font-medium text-slate-400 underline decoration-dotted hover:text-sky-600"
-        title="Sign in to ask your own questions"
-      >
-        Sign in to ask ↗
-      </a>
-    )
-  }
 
   if (!open) {
     return (
@@ -110,8 +97,11 @@ function AskBox({ parentId }: { parentId: string }) {
   )
 }
 
-/** Footer controls shared by every generated box: complexity + ask. */
+/** Footer controls shared by every generated box: complexity + ask.
+ * Signed-in only — these are costly, gated features; guests see nothing. */
 export function BoxTools({ nodeId, level, busy }: { nodeId: string; level?: ComplexityLevel; busy?: boolean }) {
+  const signedIn = useAuthStore((s) => s.me?.authenticated)
+  if (!signedIn) return null
   return (
     <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-2">
       <ComplexityControl nodeId={nodeId} level={level ?? 'standard'} busy={Boolean(busy)} />

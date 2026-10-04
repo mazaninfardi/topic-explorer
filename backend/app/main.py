@@ -196,6 +196,13 @@ async def remove_familiar(term: str, user: User = Depends(current_user), session
 
 # ---------------------------------------------------------------- extract / define
 
+def _strip_abstract_for_guest(what: dict | None, user: User) -> dict | None:
+    """Withhold the (signed-in-only) abstract from a guest without re-caching."""
+    if what is not None and user.is_guest and "abstract" in what:
+        return {k: v for k, v in what.items() if k != "abstract"}
+    return what
+
+
 async def _record_guest_paper(user: User, paper_id: str) -> None:
     """Count a paper against a guest's free quota — only after a real result."""
     if not user.is_guest:
@@ -236,8 +243,8 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
             # A cached hit is a guaranteed result — count the guest's paper now.
             await _record_guest_paper(user, paper_id)
             # The abstract rides along in the `what` payload (stashed under
-            # "abstract"); the client lifts it out into its own box.
-            yield _sse("what", cached_what)
+            # "abstract") — a signed-in perk, so strip it for guests.
+            yield _sse("what", _strip_abstract_for_guest(cached_what, user))
             yield _sse("why", cached_why)
             yield _sse("how", cached_how)
             return
@@ -253,8 +260,9 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
             title, abstract = await meta_task
             # Keep the authors' verbatim abstract on the `what` payload so it is
             # cached and restored without a new column or a separate round-trip.
+            # Always cache the abstract; only withhold it from guests on the wire.
             what = {**what, "title": title, "url": url, "abstract": abstract}
-            yield _sse("what", what)
+            yield _sse("what", _strip_abstract_for_guest(what, user))
             # Only count the guest's paper once we've actually produced a result.
             await _record_guest_paper(user, paper_id)
             why_how = await _get_extractor().extract_why_how(pdf)
@@ -292,11 +300,13 @@ async def define(req: DefineRequest) -> dict:
 # ---------------------------------------------------------------- box enrichment
 
 @app.get("/api/abstract")
-async def abstract(arxiv: str) -> dict:
+async def abstract(arxiv: str, user: User = Depends(current_user)) -> dict:
     """The paper's verbatim abstract — cache first, else a fresh arXiv fetch.
 
     Fallback for a restored graph whose `pending.abstract` predates this feature.
+    Signed-in only (an enrichment feature).
     """
+    _require_account(user)
     try:
         paper_id = arxiv_id(arxiv)
     except IngestionError as exc:
@@ -321,7 +331,8 @@ _LEVELS = {"simpler", "standard", "technical"}
 
 
 @app.post("/api/rephrase")
-async def rephrase(req: RephraseRequest) -> dict:
+async def rephrase(req: RephraseRequest, user: User = Depends(current_user)) -> dict:
+    _require_account(user)  # signed-in only (a costly model call)
     if req.level not in _LEVELS:
         raise HTTPException(status_code=400, detail="invalid level")
     return await _get_extractor().rephrase(req.text, req.level, req.context)
@@ -369,8 +380,12 @@ async def _extract_figures(paper_id: str) -> list:
 
 
 @app.get("/api/figures")
-async def figures(arxiv: str) -> dict:
-    """The paper's figures, extracted on first request and cached thereafter."""
+async def figures(arxiv: str, user: User = Depends(current_user)) -> dict:
+    """The paper's figures, extracted on first request and cached thereafter.
+
+    Signed-in only — extraction is a model call plus PDF rendering (costly).
+    """
+    _require_account(user)
     try:
         paper_id = arxiv_id(arxiv)
     except IngestionError as exc:
@@ -389,8 +404,9 @@ async def figures(arxiv: str) -> dict:
 
 
 @app.get("/api/figimg")
-async def figimg(arxiv: str, idx: int) -> Response:
+async def figimg(arxiv: str, idx: int, user: User = Depends(current_user)) -> Response:
     """Serve one cached figure image by index (bytes decoded from the DB row)."""
+    _require_account(user)  # figures are a signed-in feature
     try:
         paper_id = arxiv_id(arxiv)
     except IngestionError as exc:

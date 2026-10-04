@@ -10,5 +10,5 @@
 
 ## 3. Verify
 - [x] 3.1 Typecheck + lint + unit tests green (27 FE, 14 BE); `openspec validate gate-enrichment-signin --strict`
-- [ ] 3.2 Live: guest sees no Abstract/Figures/complexity/Ask and the endpoints 401; signed-in sees and uses them
-- [ ] 3.3 Merge to main; deploy to Cloud Run; verify live
+- [x] 3.2 Live gate verified as guest: /api/abstract, /api/figures, /api/figimg, /api/rephrase, /api/ask all 401; /api/define 200 (core stays open). UI hiding covered by the signedIn gate in BoxTools/WhatNode (signed-in in-browser check left to the user on prod)
+- [x] 3.3 Merged to main; deployed to Cloud Run (revision topic-explorer-00012-mkb); verified live at topic-explorer.mazanin.com

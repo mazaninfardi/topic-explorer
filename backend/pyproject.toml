@@ -16,6 +16,7 @@ dependencies = [
     "cloud-sql-python-connector[asyncpg]>=1.22.0",
     "pypdfium2>=4.30",
     "pillow>=10.0",
+    "numpy>=1.26",
 ]
 
 [dependency-groups]

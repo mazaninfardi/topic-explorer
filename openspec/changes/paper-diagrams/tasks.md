@@ -1,10 +1,10 @@
 # Tasks
 
 ## 1. Backend — figure extraction (paper-media)
-- [x] 1.1 `gemini.py`: `locate_figures(pdf)` → `[{number, caption, page, bbox}]` (structured output, top-left-origin bbox)
-- [x] 1.2 `figures.py` with pypdfium2 + Pillow: render each figure's page (~144dpi) and crop to `bbox` → PNG (≤1100px); full-page fallback on bad/missing bbox; runs via `asyncio.to_thread`
-- [x] 1.3 Cache in Postgres: new `paper_figures` table (one JSONB row/paper, inline base64 PNGs); row existence = extracted (empty list included)
-- [x] 1.4 No new infra/secret (Postgres reused); pypdfium2 + Pillow added to `pyproject.toml`
+- [x] 1.1 `gemini.py`: `locate_figures(pdf)` → `[{number, caption, page}]` (structured output)
+- [x] 1.2 `figures.py` with pypdfium2 + Pillow + numpy: find the caption in the text layer, render the page (~144dpi), white out all text (incl. the figure's labels), and crop the ink cluster above the caption → PNG (≤1100px); full-page fallback; runs via `asyncio.to_thread`. (Replaces the model-bbox crop, which was too imprecise — clipped/over-included figures.)
+- [x] 1.3 Cache in Postgres: `paper_figures` table (one JSONB row/paper, inline base64 PNGs), wrapped `{v, items}` with `FIGURES_VERSION` so algorithm changes auto-re-extract; row existence = extracted (empty list included)
+- [x] 1.4 No new infra/secret (Postgres reused); pypdfium2 + Pillow + numpy added to `pyproject.toml`
 
 ## 2. Backend — serving
 - [x] 2.1 `GET /api/figures?arxiv=` → manifest `[{number, caption, imageUrl}]`; extract on cache miss, return when ready

@@ -15,28 +15,33 @@ tables/equations, cost caps (M6). Light tests only.
 
 ## Decisions
 
-### Extraction: model-assisted localisation + render-and-crop
+### Extraction: render the page, isolate the figure from the text
 
 > Decisions locked with the user: render with **pypdfium2** (permissive Apache/BSD licence — safe in a
 > deployed product) rather than PyMuPDF (AGPL); cache figures in **Postgres**, not a GCS bucket, so the
 > prototype needs no new infra ("explore fast, commit late").
 
-Naive "pull every embedded image" is noisy — it returns logos, math glyphs, and split sub-images, and it
-loses the figure↔caption pairing. Instead:
+The model names each figure well but can't place it: its pixel bounding boxes are too imprecise (they clip
+or over-include), and the PDF object model hides figures wrapped in Form XObjects. What *is* reliable is
+the **caption's position in the text layer** and the **rendered pixels**. So:
 
-1. **Localise with the model.** Gemini already receives the PDF for extraction; ask it (structured output)
-   for the list of figures: `[{ number, caption, page, bbox }]`, where `bbox` is a normalised
-   top-left-origin region on that page. The model is good at "where is Figure 3 and what does its caption
-   say"; this gives us caption↔figure pairing for free.
-2. **Render and crop with pypdfium2 + Pillow.** For each figure, render its page at ~144dpi and crop to the
-   `bbox` → a PNG (downscaled to ≤1100px wide). Rendering (not raw image extraction) sidesteps vector
-   figures, multi-image composites, and odd encodings — what the reader sees is exactly what's on the page.
-3. **Fallback.** If a `bbox` is missing or implausibly small, render the **full page** for that figure
-   (still useful, clearly captioned). If the model returns no figures, the gallery shows a clean empty
-   state. CPU-bound render/crop runs in a worker thread (`asyncio.to_thread`) so the event loop isn't blocked.
+1. **Locate captions with the model.** Gemini returns `[{ number, caption, page }]` — what it's good at.
+   (It may also return a `bbox`; we ignore it.)
+2. **Find the caption in the text layer.** Search the page's text for the caption's own words (pypdfium2
+   text search) to get its exact rectangle — hence the figure's bottom edge and its column.
+3. **Isolate the figure by erasing text.** Render the page (~144dpi), then white out every text-layer
+   rectangle — body text, the caption, *and the figure's own labels*. The ink that remains is the drawn
+   figure (works for vector diagrams, raster plots, and form-wrapped figures alike). Take the vertically
+   contiguous ink cluster directly above the caption (a blank gap separates stacked figures / body text),
+   find its tight extent, and crop the **original** render so labels stay visible. Downscale to ≤1100px.
+4. **Fallback.** If the caption can't be found or no ink cluster sits above it, render the **full page**
+   (still real and captioned). No figures from the model → clean empty state. The CPU-bound render/crop
+   runs in a worker thread (`asyncio.to_thread`).
 
-Trade-off: one extra model call per paper (only on first Figures open) plus render cost; accepted because
-it is lazy and cached, and it is the only approach that reliably yields *captioned, real* figures.
+Trade-off: one model call per paper (only on first Figures open) plus render + a little numpy pixel work;
+accepted because it is lazy, cached, and the only approach that reliably yields *tight, correct* figures
+across every figure encoding. New dep: **numpy** (pixel masking). A **`FIGURES_VERSION`** stamped on each
+cached row auto-invalidates old extractions when the algorithm changes.
 
 ### Serving & caching
 
@@ -73,7 +78,8 @@ it is lazy and cached, and it is the only approach that reliably yields *caption
 - **Cost/latency of first open.** One model call + render; mitigated by lazy + cache. Per-user caps → M6.
 - **DB growth.** Figure bytes live in Postgres (~1-2 MB/paper, shared across users via the cache). Fine at
   prototype scale; move to object storage if the table grows large (the serving seam makes that a swap).
-- **New dependency:** pypdfium2 + Pillow in the backend image (both permissive-licensed, no new infra).
+- **New dependencies:** pypdfium2 + Pillow + numpy in the backend image (all permissive-licensed, no new
+  infra). A `FIGURES_VERSION` on each cached row re-extracts when the algorithm changes.
 - **Copyright.** Figures are shown from the paper the user chose to explore, one at a time with
   attribution via caption/number; no redistribution beyond that reader's session/graph.
 

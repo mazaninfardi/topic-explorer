@@ -14,7 +14,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .arxiv import IngestionError, arxiv_id, fetch_meta, fetch_pdf
-from .figures import render_figures
+from .figures import FIGURES_VERSION, render_figures
 from .auth import COOKIE, build_auth_url, current_user, exchange_code, set_session_cookie
 from .config import settings
 from .db import SessionLocal, get_session, init_db
@@ -367,15 +367,34 @@ def _figures_manifest(paper_id: str, figures: list) -> list[dict]:
     ]
 
 
+def _fresh_items(row: PaperFigures | None) -> list | None:
+    """The cached figure items iff the row matches the current algorithm version.
+
+    Rows are stored wrapped as {"v": FIGURES_VERSION, "items": [...]}. A missing
+    row, an old list-format row, or a stale version all read as a miss so the
+    paper re-extracts with the current algorithm.
+    """
+    if row is None:
+        return None
+    raw = row.figures
+    if isinstance(raw, dict) and raw.get("v") == FIGURES_VERSION:
+        return raw.get("items") or []
+    return None
+
+
 async def _extract_figures(paper_id: str) -> list:
-    """Locate + render a paper's figures and cache the row (idempotent)."""
+    """Locate + render a paper's figures and (over)write the cached row."""
     pdf = await fetch_pdf(paper_id)
     specs = await _get_extractor().locate_figures(pdf)
     figures = await asyncio.to_thread(render_figures, pdf, specs) if specs else []
+    payload = {"v": FIGURES_VERSION, "items": figures}
     async with SessionLocal() as s:
-        if await s.get(PaperFigures, paper_id) is None:
-            s.add(PaperFigures(arxiv_id=paper_id, figures=figures))
-            await s.commit()
+        row = await s.get(PaperFigures, paper_id)
+        if row is None:
+            s.add(PaperFigures(arxiv_id=paper_id, figures=payload))
+        else:
+            row.figures = payload  # refresh a stale/old-format row in place
+        await s.commit()
     return figures
 
 
@@ -392,7 +411,7 @@ async def figures(arxiv: str, user: User = Depends(current_user)) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     async with SessionLocal() as s:
         cached = await s.get(PaperFigures, paper_id)
-    figs = cached.figures if cached is not None else None
+    figs = _fresh_items(cached)
     if figs is None:
         try:
             figs = await _extract_figures(paper_id)
@@ -413,7 +432,7 @@ async def figimg(arxiv: str, idx: int, user: User = Depends(current_user)) -> Re
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     async with SessionLocal() as s:
         row = await s.get(PaperFigures, paper_id)
-    figs = row.figures if row is not None else []
+    figs = _fresh_items(row) or []
     if idx < 0 or idx >= len(figs):
         raise HTTPException(status_code=404, detail="no such figure")
     fig = figs[idx]

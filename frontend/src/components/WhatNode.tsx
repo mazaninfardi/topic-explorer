@@ -18,7 +18,6 @@ const SPECIAL_BTN: Record<SpecialKind, string> = {
 export function WhatNode({ id, data }: NodeProps<TGNode>) {
   const expandTerm = useGraphStore((s) => s.expandTerm)
   const openSpecial = useGraphStore((s) => s.openSpecial)
-  const openFigures = useGraphStore((s) => s.openFigures)
   const pending = useGraphStore((s) => s.pending)
   const setPaperPanel = useGraphStore((s) => s.setPaperPanel)
   const signedIn = useAuthStore((s) => s.me?.authenticated)
@@ -83,17 +82,9 @@ export function WhatNode({ id, data }: NodeProps<TGNode>) {
             <div className="mt-3 flex flex-wrap gap-2">
               {action('why', 'Why')}
               {action('how', 'How')}
-              {/* Abstract + Figures are signed-in perks (costly); hidden for guests. */}
+              {/* Abstract is a signed-in perk (costly); hidden for guests.
+                  Figures are disabled for now — read the full paper instead. */}
               {signedIn && pending.abstract && action('abstract', 'Abstract')}
-              {signedIn && (
-                <button
-                  type="button"
-                  onClick={() => openFigures()}
-                  className="nodrag nopan rounded-md border border-cyan-300 px-3 py-1 text-sm font-medium text-cyan-700 transition-colors hover:bg-cyan-50"
-                >
-                  Figures
-                </button>
-              )}
             </div>
           )}
           <BoxTools nodeId={id} level={data.complexity} busy={data.rephrasing} />

@@ -1,9 +1,30 @@
 import { useState } from 'react'
 import { useGraphStore } from '../graph/store'
+import { useAuthStore } from '../lib/auth'
 import { arxivIdOf } from '../lib/arxiv'
 
 const SAMPLE = 'https://arxiv.org/abs/1512.03385'
 type Mode = 'paper' | 'topic'
+
+/** Guests can't explore — invite them to sign in (the example is shown below). */
+function GuestCta() {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+      <div>
+        <p className="text-sm font-medium text-slate-900">Sign in to explore any paper or topic</p>
+        <p className="text-xs text-slate-500">
+          You’re viewing a live example below — sign in to explore your own and save your work.
+        </p>
+      </div>
+      <a
+        href="/api/auth/login"
+        className="shrink-0 rounded-md bg-sky-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
+      >
+        Sign in with Google
+      </a>
+    </div>
+  )
+}
 
 export function PaperInput() {
   const [mode, setMode] = useState<Mode>('paper')
@@ -16,7 +37,10 @@ export function PaperInput() {
   const error = useGraphStore((s) => s.error)
   const nodeCount = useGraphStore((s) => s.nodes.length)
   const isExample = useGraphStore((s) => s.isExample)
+  const guest = useAuthStore((s) => s.me?.guest)
   const extracting = status === 'extracting'
+
+  if (guest) return <GuestCta />
 
   // A real, user-built graph is worth protecting from an accidental reset.
   const hasWork = status === 'ready' && !isExample && nodeCount > 1

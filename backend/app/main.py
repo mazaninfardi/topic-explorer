@@ -52,12 +52,7 @@ async def health() -> dict:
 # ---------------------------------------------------------------- auth
 
 def _user_public(user: User) -> dict:
-    info = {"authenticated": not user.is_guest, "guest": user.is_guest, "email": user.email, "name": user.name}
-    if user.is_guest:
-        used = len(user.explored or [])
-        info["papers_left"] = max(0, settings.guest_paper_limit - used)
-        info["guest_limit"] = settings.guest_paper_limit
-    return info
+    return {"authenticated": not user.is_guest, "guest": user.is_guest, "email": user.email, "name": user.name}
 
 
 def _require_account(user: User) -> None:
@@ -196,29 +191,10 @@ async def remove_familiar(term: str, user: User = Depends(current_user), session
 
 # ---------------------------------------------------------------- extract / define
 
-def _strip_abstract_for_guest(what: dict | None, user: User) -> dict | None:
-    """Withhold the (signed-in-only) abstract from a guest without re-caching."""
-    if what is not None and user.is_guest and "abstract" in what:
-        return {k: v for k, v in what.items() if k != "abstract"}
-    return what
-
-
-async def _record_guest_paper(user: User, paper_id: str) -> None:
-    """Count a paper against a guest's free quota — only after a real result."""
-    if not user.is_guest:
-        return
-    async with SessionLocal() as s:
-        guser = await s.get(User, user.id)
-        if guser is None:
-            return
-        explored = list(guser.explored or [])
-        if paper_id not in explored:
-            guser.explored = [*explored, paper_id]
-            await s.commit()
-
-
 @app.get("/api/extract")
 async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingResponse:
+    _require_account(user)  # exploring a paper is signed-in only (costly model calls)
+
     async def gen():
         try:
             paper_id = arxiv_id(arxiv)
@@ -232,19 +208,9 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
             cached = await s.get(PaperAnalysis, paper_id)
             if cached is not None:
                 cached_what, cached_why, cached_how = cached.what, cached.why, cached.how
-            if user.is_guest:
-                guser = await s.get(User, user.id)
-                explored = list(guser.explored or []) if guser else []
-                if paper_id not in explored and len(explored) >= settings.guest_paper_limit:
-                    yield _sse("error", {"message": "guest-limit"})
-                    return
 
         if cached_what is not None:
-            # A cached hit is a guaranteed result — count the guest's paper now.
-            await _record_guest_paper(user, paper_id)
-            # The abstract rides along in the `what` payload (stashed under
-            # "abstract") — a signed-in perk, so strip it for guests.
-            yield _sse("what", _strip_abstract_for_guest(cached_what, user))
+            yield _sse("what", cached_what)
             yield _sse("why", cached_why)
             yield _sse("how", cached_how)
             return
@@ -260,11 +226,8 @@ async def extract(arxiv: str, user: User = Depends(current_user)) -> StreamingRe
             title, abstract = await meta_task
             # Keep the authors' verbatim abstract on the `what` payload so it is
             # cached and restored without a new column or a separate round-trip.
-            # Always cache the abstract; only withhold it from guests on the wire.
             what = {**what, "title": title, "url": url, "abstract": abstract}
-            yield _sse("what", _strip_abstract_for_guest(what, user))
-            # Only count the guest's paper once we've actually produced a result.
-            await _record_guest_paper(user, paper_id)
+            yield _sse("what", what)
             why_how = await _get_extractor().extract_why_how(pdf)
             async with SessionLocal() as s:
                 if await s.get(PaperAnalysis, paper_id) is None:
@@ -293,7 +256,8 @@ class DefineRequest(BaseModel):
 
 
 @app.post("/api/define")
-async def define(req: DefineRequest) -> dict:
+async def define(req: DefineRequest, user: User = Depends(current_user)) -> dict:
+    _require_account(user)  # defining a term is signed-in only (a model call)
     return await _get_extractor().define(req.term)
 
 

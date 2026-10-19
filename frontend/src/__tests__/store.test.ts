@@ -27,12 +27,12 @@ vi.mock('../content', () => ({
   },
 }))
 
-// Guest by default (matches the familiar tests, which assume no persistence);
-// flip `auth.authenticated` in a test to exercise the signed-in paths.
-const auth = vi.hoisted(() => ({ authenticated: false }))
+// Signed-in by default — using the app's features now requires sign-in; flip
+// `auth.authenticated` to false in a test to exercise the guest/gated paths.
+const auth = vi.hoisted(() => ({ authenticated: true }))
 vi.mock('../lib/auth', () => ({
   useAuthStore: {
-    getState: () => ({ me: { authenticated: auth.authenticated }, load: async () => {} }),
+    getState: () => ({ me: { authenticated: auth.authenticated, guest: !auth.authenticated }, load: async () => {} }),
   },
 }))
 
@@ -56,7 +56,7 @@ beforeEach(() => {
   h.rephrase.mockClear()
   h.ask.mockClear()
   h.fetchFigures.mockClear()
-  auth.authenticated = false
+  auth.authenticated = true
 })
 
 describe('graph store', () => {
@@ -227,11 +227,38 @@ describe('graph store', () => {
   })
 
   it('a guest cannot ask (no node created, no call)', () => {
-    auth.authenticated = false
-    start()
+    start() // build the graph while signed-in…
+    auth.authenticated = false // …then become a guest
     useGraphStore.getState().askQuestion(ROOT_ID, 'Why?')
     expect(useGraphStore.getState().nodes.some((n) => n.data.kind === 'qa')).toBe(false)
     expect(h.ask).not.toHaveBeenCalled()
+  })
+
+  it('a guest exploring is shown the sign-in prompt, not an extraction', () => {
+    auth.authenticated = false
+    useGraphStore.getState().explore('1512.03385')
+    expect(useGraphStore.getState().signInPrompt).toBe(true)
+    expect(useGraphStore.getState().nodes).toHaveLength(0)
+    expect(useGraphStore.getState().status).toBe('idle')
+  })
+
+  it('a guest defining a new term is prompted to sign in (no API call, no node)', () => {
+    auth.authenticated = false
+    useGraphStore.getState().loadExample({
+      arxiv_id: 'example',
+      title: 'Demo',
+      graph: {
+        nodes: [{ id: ROOT_ID, type: 'what', position: { x: 0, y: 0 }, data: { kind: 'what', text: 'W with foo', terms: ['foo'] } }],
+        edges: [],
+        specialsOpened: [],
+        pending: {},
+        hidden: [],
+      },
+    })
+    useGraphStore.getState().expandTerm(ROOT_ID, 'foo')
+    expect(useGraphStore.getState().signInPrompt).toBe(true)
+    expect(h.defineTerm).not.toHaveBeenCalled()
+    expect(useGraphStore.getState().nodes).toHaveLength(1)
   })
 
   it('opens a figures gallery on a paper and pages with wraparound', async () => {

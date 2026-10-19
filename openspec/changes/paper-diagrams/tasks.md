@@ -26,3 +26,5 @@
 - [x] 5.1 Typecheck + lint + unit tests green (27 pass); light tests (openFigures builds node; setFigureIndex wraps; topic root offers none); production build OK
 - [x] 5.2 Pipeline verified live on arXiv 1512.03385: 7 figures with correct captions, cache hit ~56ms, bad input 400, out-of-range 404; crop fix confirmed figure-shaped via probe (277x135, 763x846 …). In-browser visual (signed-in) left to the user on prod
 - [x] 5.3 Merged to main; deployed to Cloud Run (revision topic-explorer-00012-mkb, with gate-enrichment-signin); live at topic-explorer.mazanin.com
+
+> Note: the Figures entry point was later withdrawn from the UI by `require-signin` (read the full paper instead). The backend/`openFigures`/`FiguresNode` remain dormant — re-enable by restoring the button in `WhatNode`.

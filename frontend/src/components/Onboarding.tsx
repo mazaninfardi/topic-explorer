@@ -25,12 +25,13 @@ export function Onboarding() {
   const emptyCanvas = useGraphStore((s) => s.nodes.length === 0 && s.status === 'idle')
   const [dismissed, setDismissed] = useState(readDone)
 
-  // Load the example whenever a guest lands on an empty canvas (fresh visit or
-  // after signing out). Signed-in users restore their own data instead.
+  // Guests always see the example (they can't explore their own), so load it
+  // whenever a guest lands on an empty canvas — even after the walkthrough is
+  // dismissed. Signed-in users restore their own data instead.
   useEffect(() => {
-    if (dismissed || !me?.guest || !emptyCanvas) return
+    if (!me?.guest || !emptyCanvas) return
     loadExample(EXAMPLE_TOPIC)
-  }, [me, dismissed, emptyCanvas, loadExample])
+  }, [me, emptyCanvas, loadExample])
 
   useEffect(() => {
     const show = !dismissed && isExample
@@ -88,7 +89,7 @@ export function Onboarding() {
             <span className="font-medium text-violet-700">How</span> for the motivation and the method.
           </li>
         </ol>
-        <p className="mt-2 text-xs text-slate-400">Paste a topic or arXiv link above to explore your own.</p>
+        <p className="mt-2 text-xs text-slate-400">Sign in above to explore your own paper or topic.</p>
       </div>
     </div>
   )

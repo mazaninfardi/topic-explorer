@@ -8,6 +8,8 @@ import { api, type TopicRecord } from '../lib/api'
 import { useAuthStore } from '../lib/auth'
 
 const canPersist = () => Boolean(useAuthStore.getState().me?.authenticated)
+/** Guests may view the example but not run model-backed actions (explore/define). */
+const needsSignIn = () => !useAuthStore.getState().me?.authenticated
 
 export const ROOT_ID = 'root'
 /** Root-anchored boxes opened from the What node (one each, parented by root). */
@@ -132,7 +134,11 @@ interface GraphState {
   isExample: boolean
   /** arXiv abstract URL of the paper shown in the side-by-side panel, or null when closed. */
   paperPanelUrl: string | null
+  /** True when a guest tried a signed-in-only action — shows the sign-in prompt. */
+  signInPrompt: boolean
 
+  promptSignIn: () => void
+  dismissSignIn: () => void
   explore: (ref: string) => void
   exploreTopic: (query: string) => void
   loadExample: (rec: TopicRecord) => void
@@ -188,8 +194,13 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   lastAddedId: null,
   isExample: false,
   paperPanelUrl: null,
+  signInPrompt: false,
+
+  promptSignIn: () => set({ signInPrompt: true }),
+  dismissSignIn: () => set({ signInPrompt: false }),
 
   explore: (ref) => {
+    if (needsSignIn()) return set({ signInPrompt: true })
     get().reset()
     const id = arxivIdOf(ref) ?? ref.trim()
     const unsubscribe = contentSource.explore(ref, {
@@ -231,6 +242,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
   },
 
   exploreTopic: (query) => {
+    if (needsSignIn()) return set({ signInPrompt: true })
     get().reset()
     const q = query.trim()
     const key = newTopicKey()
@@ -474,6 +486,9 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
     }
     if (existing) return
 
+    // Defining a new term is a model call — guests get the sign-in prompt instead.
+    if (needsSignIn()) return set({ signInPrompt: true })
+
     const id = termNodeId(term)
     const node: TGNode = { id, type: 'salient-term', position: ORIGIN, data: { kind: 'salient-term', text: '', terms: [], term, loading: true } }
     const edges = [...s.edges, { id: `e-${parentId}-${id}`, source: parentId, target: id }]
@@ -569,6 +584,7 @@ export const useGraphStore = create<GraphState>()((set, get) => ({
       lastAddedId: null,
       isExample: false,
       paperPanelUrl: null,
+      signInPrompt: false,
       // `familiar` and `topicKey` intentionally preserved across explorations.
     })
   },

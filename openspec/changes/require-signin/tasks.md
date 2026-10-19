@@ -16,5 +16,5 @@
 
 ## 4. Verify
 - [x] 4.1 Typecheck + lint + unit tests green (29 FE, 14 BE); build OK; new tests: guest explore → prompt, guest new-term → prompt, guest ask gated
-- [ ] 4.2 Live: guest sees the example + CTA, `/api/extract` & `/api/define` 401; signed-in explores normally; no Figures button
-- [ ] 4.3 Merge to main; deploy to Cloud Run; verify live
+- [x] 4.2 Live gate verified as guest: `/api/extract` 401, `/api/define` 401, `/api/auth/me` returns the slim guest shape (no `papers_left`), home + health 200. Guest example/CTA/no-Figures UI left to the user in-browser
+- [x] 4.3 Merged to main; deployed to Cloud Run (revision topic-explorer-00014-ktd); live at topic-explorer.mazanin.com

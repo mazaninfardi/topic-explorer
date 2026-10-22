@@ -14,10 +14,14 @@ from __future__ import annotations
 import base64
 import re
 from io import BytesIO
+from typing import TYPE_CHECKING
 
-import numpy as np
-import pypdfium2 as pdfium
-from PIL import Image
+if TYPE_CHECKING:  # type-only; the heavy libs are imported lazily (see below)
+    from PIL import Image
+
+# numpy, pypdfium2 and Pillow are deferred into the functions that use them so a
+# cold-start container (figures is an on-demand feature) doesn't pay ~300ms+ of
+# import time just to serve the app shell. First Figures request loads them.
 
 # Bump when the extraction algorithm changes — old cached rows re-extract.
 FIGURES_VERSION = 2
@@ -33,6 +37,8 @@ Rect = tuple[float, float, float, float]  # (left, bottom, right, top), text: or
 
 
 def _encode(img: Image.Image) -> str:
+    from PIL import Image
+
     if img.width > _MAX_W:
         h = round(img.height * _MAX_W / img.width)
         img = img.resize((_MAX_W, h), Image.LANCZOS)
@@ -88,6 +94,8 @@ def _detect_figure(
     full: Image.Image, page_rects: list[Rect], cap_rects: list[Rect], pw: float, ph: float
 ) -> Image.Image | None:
     """Isolate the figure directly above the caption via ink left after erasing text."""
+    import numpy as np
+
     W, H = full.size
     sx, sy = W / pw, H / ph
 
@@ -158,6 +166,8 @@ def _detect_figure(
 
 def render_figures(pdf: bytes, specs: list[dict]) -> list[dict]:
     """specs: [{number, caption, page, ...}] → [{number, caption, b64, content_type}]."""
+    import pypdfium2 as pdfium
+
     doc = pdfium.PdfDocument(pdf)
     try:
         n_pages = len(doc)
